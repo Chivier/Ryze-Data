@@ -1,0 +1,64 @@
+{
+  "project": {
+    "name": "Ryze-Data",
+    "version": "1.0.0",
+    "environment": "development"
+  },
+  "ocr": {
+    "model": "marker",
+    "batch_size": 10,
+    "confidence_threshold": 0.8,
+    "language": "en",
+    "gpu_enabled": true,
+    "gpu_memory_limit": 0.5,
+    "timeout_seconds": 300
+  },
+  "paths": {
+    "input_dir": "./input",
+    "output_dir": "./output",
+    "temp_dir": "./temp",
+    "logs_dir": "./logs"
+  },
+  "processing": {
+    "parallel_workers": 4,
+    "max_retries": 3,
+    "retry_delay_seconds": 5,
+    "quality_threshold": 0.85
+  },
+  "qa_templates": {
+    "version": "v1.2",
+    "templates_dir": "./templates",
+    "enabled_types": ["factual", "conceptual", "visual", "reference"]
+  },
+  "parsing_model": {
+    "provider": "openai",
+    "model": "gpt-4",
+    "api_endpoint": "https://api.openai.com/v1",
+    "api_key_env": "RYZE_PARSING_API_KEY",
+    "max_tokens": 2048,
+    "temperature": 0.3
+  },
+  "qa_generation_model": {
+    "provider": "openai",
+    "model": "gpt-4-turbo",
+    "api_endpoint": "https://api.openai.com/v1",
+    "api_key_env": "RYZE_QA_API_KEY",
+    "max_tokens": 4096,
+    "temperature": 0.7,
+    "batch_inference": true,
+    "batch_size": 20
+  },
+  "output_formats": {
+    "markdown": true,
+    "json": true,
+    "bibtex": true,
+    "include_images": true,
+    "compress_images": false
+  },
+  "monitoring": {
+    "enable_metrics": true,
+    "metrics_port": 9090,
+    "log_level": "INFO",
+    "log_format": "json"
+  }
+}
