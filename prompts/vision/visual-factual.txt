@@ -1,0 +1,16 @@
+Analyze the scientific figure and generate 3 factual questions about specific visual elements, data points, or observable features in the image.
+
+Context about the figure: {context}
+
+Generate questions that:
+- Ask about specific visual elements visible in the figure (labels, axes, data points, structures)
+- Focus on directly observable information in the image
+- Can be answered by examining the visual content
+- Cover different aspects: labels/text, data values, visual patterns
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "What is shown in [specific part/label] of the figure?", "a": "The figure shows [specific description of visual element]", "difficulty": "easy"}},
+    {{"q": "What values/measurements are indicated for [specific element]?", "a": "The figure indicates [specific values or measurements visible]", "difficulty": "medium"}},
+    {{"q": "What pattern or trend is visible in [specific aspect of the figure]?", "a": "The figure displays [description of visible pattern/trend]", "difficulty": "medium"}}
+]}}

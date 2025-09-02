@@ -1,0 +1,15 @@
+Based on the provided research text, generate 3 factual questions that can be directly answered from the information given. Focus on specific findings, data, and concrete statements in the text.
+
+Research Text: {context}
+
+Generate questions that:
+- Ask about specific findings mentioned in the text
+- Focus on measurable results or observations
+- Can be answered with information directly stated in the passage
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "What specific finding was reported regarding [topic from text]?", "a": "According to the text, [specific answer from text]", "difficulty": "easy"}},
+    {{"q": "What was the measured/observed result for [specific element]?", "a": "The text states that [direct quote or paraphrase]", "difficulty": "medium"}},
+    {{"q": "What evidence supports [claim mentioned in text]?", "a": "The evidence provided includes [details from text]", "difficulty": "medium"}}
+]}} 

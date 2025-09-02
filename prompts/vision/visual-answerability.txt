@@ -1,0 +1,20 @@
+Evaluate whether this question can be answered based on the visual information available in the figure.
+
+Question: {question}
+Figure Context: {context}
+
+Consider:
+- Is the information needed to answer this question visible in the figure?
+- Are the visual elements referenced in the question actually present?
+- Can the answer be determined from what's shown without requiring external knowledge?
+
+Rate the answerability on a scale of 1-5:
+1 = Cannot be answered from the figure
+2 = Very difficult to answer, minimal visual evidence
+3 = Partially answerable, some visual evidence present
+4 = Mostly answerable with clear visual evidence
+5 = Fully answerable with complete visual information
+
+Provide your evaluation in this format:
+Rate: [1-5]
+Reason: [Brief explanation of what visual evidence is or isn't available]

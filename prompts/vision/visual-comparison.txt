@@ -1,0 +1,15 @@
+Analyze the scientific figure and generate 2 comparative questions that focus on differences, similarities, or changes between elements in the visual.
+
+Context about the figure: {context}
+
+Generate questions that:
+- Compare different elements, conditions, or time points shown in the figure
+- Ask about differences or similarities between visual components
+- Focus on contrasts or variations visible in the data
+- Require careful examination of multiple parts of the figure
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "How does [element/condition A] differ from [element/condition B] in the figure?", "a": "The figure shows that [specific differences observed between A and B]", "difficulty": "medium"}},
+    {{"q": "What similarities or differences are apparent between [aspects shown in the figure]?", "a": "The visual comparison reveals [specific similarities and/or differences]", "difficulty": "hard"}}
+]}}

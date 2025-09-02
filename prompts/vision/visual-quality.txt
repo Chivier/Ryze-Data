@@ -1,0 +1,15 @@
+Evaluate the quality of this vision-based question-answer pair.
+
+Question: {question}
+Answer: {answer}
+Figure Context: {context}
+
+Rate the quality of this QA pair on a scale of 1-5 based on:
+- Clarity: Is the question clear and specific about what visual element it's asking about?
+- Accuracy: Does the answer accurately describe what's visible in the figure?
+- Relevance: Is the question relevant to understanding the scientific content?
+- Completeness: Does the answer provide sufficient detail based on the visual information?
+
+Provide your evaluation in this format:
+Rate: [1-5]
+Reason: [Brief explanation of rating]

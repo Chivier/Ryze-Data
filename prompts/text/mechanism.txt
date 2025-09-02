@@ -1,0 +1,14 @@
+Based on the provided research text, generate 2 questions about biological mechanisms or processes described in the text. Only ask about mechanisms that are actually explained or described in the passage.
+
+Research Text: {context}
+
+Generate questions that:
+- Ask about biological processes mentioned in the text
+- Focus on how or why something works based on the provided information
+- Can be answered using the mechanisms described in the passage
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "How does [process mentioned in text] work according to this research?", "a": "Based on the text, [mechanism explanation from passage]", "difficulty": "medium"}},
+    {{"q": "What mechanism explains [phenomenon described in text]?", "a": "The text explains that [mechanism details from passage]", "difficulty": "hard"}}
+]}} 

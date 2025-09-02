@@ -1,52 +1,75 @@
 {
   "project": {
     "name": "Ryze-Data",
-    "version": "1.0.0",
-    "environment": "development"
+    "version": "2.0.0",
+    "environment": "${RYZE_ENVIRONMENT:development}"
   },
   "ocr": {
     "model": "marker",
-    "batch_size": 10,
+    "batch_size": "${RYZE_BATCH_SIZE:10}",
     "confidence_threshold": 0.8,
     "language": "en",
-    "gpu_enabled": true,
+    "gpu_enabled": "${RYZE_GPU_ENABLED:true}",
     "gpu_memory_limit": 0.5,
     "timeout_seconds": 300
   },
   "paths": {
-    "input_dir": "./input",
-    "output_dir": "./output",
-    "temp_dir": "./temp",
-    "logs_dir": "./logs"
+    "data_root": "${RYZE_DATA_ROOT:./data}",
+    "logs_dir": "${RYZE_LOGS_DIR:./logs}",
+    "nature_data": "${RYZE_NATURE_DATA:./data/nature_metadata}",
+    "pdf_dir": "${RYZE_PDF_DIR:./data/pdfs}",
+    "ocr_output": "${RYZE_OCR_OUTPUT:./data/ocr_results}",
+    "abstract_dir": "${RYZE_ABSTRACT_DIR:./data/abstracts}",
+    "figures_dir": "${RYZE_FIGURES_DIR:./data/figures}",
+    "vlm_preprocessing": "${RYZE_VLM_PREPROCESSING:./data/vlm_preprocessing}",
+    "sft_data": "${RYZE_SFT_DATA:./data/sft_data}",
+    "vlm_sft_data": "${RYZE_VLM_SFT_DATA:./data/vlm_sft_data}",
+    "prompts_dir": "${RYZE_PROMPTS_DIR:./prompts}",
+    "temp_dir": "./temp"
   },
   "processing": {
-    "parallel_workers": 4,
+    "parallel_workers": "${RYZE_NUM_WORKERS:4}",
     "max_retries": 3,
     "retry_delay_seconds": 5,
-    "quality_threshold": 0.85
+    "quality_threshold": "${RYZE_QUALITY_THRESHOLD:2.5}",
+    "qa_ratio": "${RYZE_QA_RATIO:8}",
+    "max_papers": "${RYZE_MAX_PAPERS:1000}"
+  },
+  "servers": {
+    "download_servers": "${RYZE_DOWNLOAD_SERVERS:server1,server2,server3}",
+    "work_hours_start": "${RYZE_WORK_HOURS_START:0}",
+    "work_hours_end": "${RYZE_WORK_HOURS_END:6}"
   },
   "qa_templates": {
-    "version": "v1.2",
-    "templates_dir": "./templates",
-    "enabled_types": ["factual", "conceptual", "visual", "reference"]
+    "version": "v2.0",
+    "templates_dir": "${RYZE_PROMPTS_DIR:./prompts}",
+    "enabled_types": ["factual", "conceptual", "visual", "reference", "mechanism", "application"]
   },
   "parsing_model": {
     "provider": "openai",
-    "model": "gpt-4",
-    "api_endpoint": "https://api.openai.com/v1",
+    "model": "${RYZE_LLM_MODEL:gpt-4}",
+    "api_endpoint": "${OPENAI_BASE_URL:https://api.openai.com/v1}",
     "api_key_env": "RYZE_PARSING_API_KEY",
     "max_tokens": 2048,
     "temperature": 0.3
   },
   "qa_generation_model": {
     "provider": "openai",
-    "model": "gpt-4-turbo",
-    "api_endpoint": "https://api.openai.com/v1",
+    "model": "${RYZE_LLM_MODEL:gpt-4-turbo}",
+    "api_endpoint": "${OPENAI_BASE_URL:https://api.openai.com/v1}",
     "api_key_env": "RYZE_QA_API_KEY",
     "max_tokens": 4096,
     "temperature": 0.7,
     "batch_inference": true,
-    "batch_size": 20
+    "batch_size": "${RYZE_BATCH_SIZE:20}"
+  },
+  "vision_model": {
+    "provider": "openai",
+    "model": "${RYZE_VISION_MODEL:gpt-4-vision}",
+    "api_endpoint": "${OPENAI_BASE_URL:https://api.openai.com/v1}",
+    "api_key_env": "OPENAI_API_KEY",
+    "max_tokens": 4096,
+    "temperature": 0.7
   },
   "output_formats": {
     "markdown": true,
@@ -57,7 +80,7 @@
   },
   "monitoring": {
     "enable_metrics": true,
-    "metrics_port": 9090,
+    "metrics_port": "${RYZE_STATUS_PORT:9090}",
     "log_level": "INFO",
     "log_format": "json"
   }

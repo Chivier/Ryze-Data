@@ -1,0 +1,15 @@
+Analyze the scientific figure and generate 2 questions about processes, mechanisms, or causal relationships illustrated in the visual.
+
+Context about the figure: {context}
+
+Generate questions that:
+- Focus on processes or mechanisms depicted in the figure
+- Ask about cause-and-effect relationships shown visually
+- Inquire about steps, stages, or flow of information/materials
+- Require understanding of how the visualized system works
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "According to the figure, how does [process/mechanism] proceed?", "a": "The figure shows that the process proceeds by [description of steps/stages visible]", "difficulty": "medium"}},
+    {{"q": "What mechanism is illustrated for [specific phenomenon shown]?", "a": "The figure illustrates that [explanation of mechanism based on visual elements]", "difficulty": "hard"}}
+]}}

@@ -1,0 +1,15 @@
+Evaluate the quality of this question-answer pair considering accuracy, clarity, and educational value for biology students.
+
+Question: {question}
+Answer: {answer}
+Context: {context}
+
+Rate on scale 1-5 where:
+1 = Poor quality (inaccurate, unclear, or not educational)
+2 = Below average (some issues with accuracy or clarity)
+3 = Average (acceptable but could be improved)
+4 = Good quality (accurate, clear, educational)
+5 = Excellent (highly accurate, very clear, very educational)
+
+IMPORTANT: Return ONLY in this format: Rate: [1-5]
+Reason: [brief explanation] 

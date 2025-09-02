@@ -1,0 +1,65 @@
+[
+  {
+    "figure_path": "/data/nature/ocr_result/nature04244/_page_1_Figure_12.jpeg",
+    "related_info": [
+      {
+        "position": "before_figure",
+        "info": "We compared the findings for the 27 phenotypes in Table 1 to those from our previous whole-genome linkage scans1 . To simplify this analysis, we focused on the SNP with the most significant finding in the GWA for each phenotype in Table 1. For this SNP, we classified the results according to whether the association was or was not supported by the genome-wide linkage analysis (that is, whether the SNP that showed significant association fell within the region of significant linkage). For 15 of the 27 phenotypes, genome-wide linkage analyses and GWA pointed to the same cis regulatory regions. In 13 of these, the corrected P-value for the cis marker was ,0.05 (Puncorr. , 6.7 £ 1028 ) in the GWA, providing highly significant evidence for cis regulatory elements. In one of the 13 phenotypes, PPAT, the GWA result points to both cis and trans regulators; however, linkage scan results support only the cis regulation. For the other two phenotypes (POMZP3 and CHI3L2) the results were nominally significant (P ¼ 7 £ 1028 and P ¼ 3 £ 1027 , respectively). For both phenotypes, the peak SNPs are located close to the target genes (6 kb 50 for POMZP3 and 91 base pairs (bp) 50 for CHI3L2). Because of the location, we consider these cases 'true' positives, but recognize that the statistical evidence alone is not compelling. We show evidence below that one of these peak SNPs is a regulatory variant of CHI3L2."
+      },
+      {
+        "position": "before_figure",
+        "info": "For the remaining 12 of the 27 phenotypes, no strong evidence for"
+      },
+      {
+        "position": "after_figure",
+        "info": "Figure 1 | Results of genome-wide association analysis for six representative phenotypes with cis regulators. The horizontal line in each panel corresponds to P ¼ 0.05 after Sˇida´k correction."
+      },
+      {
+        "position": "after_figure",
+        "info": "cis determinants was found by GWA. In 11 of the 12 phenotypes, no significant association (Pcorr. , 0.05 or Puncorr. , 6.7 £ 1028 ) was detected anywhere in the genome, even though highly significant evidence for cis regulation was detected in the linkage scans. For DDX17, as indicated above, GWA identified significant trans association (Pcorr. , 0.05) but evidence for a trans-acting regulator was not found in the linkage scan. For all 12 phenotypes, the most significant markers were located on chromosomes different from that of the expressed gene. (There are 13 'trans' markers listed in Table 1; one is the non-cis marker for PPAT, see above.) The locations and P-values from the association analyses for these markers are shown in Table 1. In some cases, the failure to find significant evidence for cis association, despite highly significant linkage results for cis regulation, may be due to linkage findings that were false-positive results. However, even if the linkage findings reflect real effects, allelic heterogeneity might make the determinant undetectable by association. Furthermore, our sample size of 57 might be too small to yield statistically significant associations, especially if the marker closest to a determinant is not in strong linkage disequilibrium with it."
+      }
+    ]
+  },
+  {
+    "figure_path": "/data/nature/ocr_result/nature04244/_page_2_Figure_3.jpeg",
+    "related_info": [
+      {
+        "position": "before_figure",
+        "info": "cis determinants was found by GWA. In 11 of the 12 phenotypes, no significant association (Pcorr. , 0.05 or Puncorr. , 6.7 £ 1028 ) was detected anywhere in the genome, even though highly significant evidence for cis regulation was detected in the linkage scans. For DDX17, as indicated above, GWA identified significant trans association (Pcorr. , 0.05) but evidence for a trans-acting regulator was not found in the linkage scan. For all 12 phenotypes, the most significant markers were located on chromosomes different from that of the expressed gene. (There are 13 'trans' markers listed in Table 1; one is the non-cis marker for PPAT, see above.) The locations and P-values from the association analyses for these markers are shown in Table 1. In some cases, the failure to find significant evidence for cis association, despite highly significant linkage results for cis regulation, may be due to linkage findings that were false-positive results. However, even if the linkage findings reflect real effects, allelic heterogeneity might make the determinant undetectable by association. Furthermore, our sample size of 57 might be too small to yield statistically significant associations, especially if the marker closest to a determinant is not in strong linkage disequilibrium with it."
+      },
+      {
+        "position": "before_figure",
+        "info": "To assess the issue of sample size for this and future studies, we determined the power to detect association—with the same correction we used for multiple testing—under various assumptions about sample size. We also considered variation in effect size; that is, the proportion (R2 ) of phenotype variation accounted for by the SNP. As a point of reference, the observed values of R2 for the 13 phenotypes with significant cis association range from 0.44 to 0.78. (In classical complex traits and diseases, R2 for individual determinants is expected to be much smaller.) To achieve a probability of 0.8 of detecting a determinant for which R2 is 0.1, we found that samples of ,500 would be needed (see Supplementary Information). Even these results must be viewed as optimistic; the calculations apply to an idealized determinant that is identical to the marker in both location and frequency, yielding maximum linkage disequilibrium. Furthermore, it is difficult to extrapolate the results to complex traits in general. For many quantitative traits of interest, the fraction of phenotypic variance attributable to any one determinant is likely to be far smaller than the values we estimated for the 13 strongly associated cis-linked expression phenotypes. Thus, extrapolations from the small samples used here to genome-wide analysis with other"
+      },
+      {
+        "position": "after_figure",
+        "info": "Figure 2 | Results of genome-wide linkage analysis (dotted line) superimposed on those from genome-wide association (bars) for the chromosome where the expressed gene is located. The location of the expressed gene is indicated by an arrow. The dotted horizontal line is for data from linkage scans and corresponds to t ¼ 4, P ¼ 3.7 £ 1025 . The solid horizontal line is for data from GWA and corresponds to P ¼ 0.05 after S ˇida´k correction. The x axis indicates chromosome location in megabases."
+      },
+      {
+        "position": "after_figure",
+        "info": "complex traits should be done cautiously—much larger samples will usually be required."
+      }
+    ]
+  },
+  {
+    "figure_path": "/data/nature/ocr_result/nature04244/_page_2_Figure_10.jpeg",
+    "related_info": [
+      {
+        "position": "before_figure",
+        "info": "Ultimately, the findings from linkage and association need to be confirmed by functional analysis. Results from our genome-wide linkage and association analyses suggest that expression level of chitinase 3-like 2 (CHI3L2) is regulated by a cis-acting transcriptional regulator (Table 1). A marker (rs755467) in the promoter region of CHI3L2 shows nominally significant association results (P , 3 £ 1027 ). Although it is not significant after correction for 770,394 markers, we considered it likely that expression level of CHI3L2 is indeed regulated by a polymorphism in its promoter region, because both linkage and association results point to the same candidate regulatory region. We followed up this finding with functional tests. To evaluate the relative promoter activity of the haplotypes bearing the different alleles of the SNP marker rs755467, we performed luciferase reporter assays. Stronger luciferase expression (.3-fold) was observed for vectors containing the upstream fragment than for the empty vector, confirming promoter activity in the DNA fragment containing marker rs755467. We then compared the promoter activity of the fragment bearing the rs755467 T-allele with that bearing the G-allele. The promoter activity of the fragment bearing the rs755467 T-allele was 2 ^ 0.6-fold higher (P , 0.05) than that bearing the G-allele."
+      },
+      {
+        "position": "before_figure",
+        "info": "Next, we performed haplotype-specific chromatin immunoprecipitation (haploChIP) to determine whether this observation is due to differential binding of RNA polymerase II to the different haplotypes8,9. The assay was performed using lymphoblastoid cells from three CEPH individuals heterozygous at rs755467. We used antibody against RNA polymerase II (phosphorylated serine 5), which is known to accumulate in promoter regions of genes10. We quantified the relative abundance of the RNA polymerase II binding to the haplotypes bearing the T- or G-alleles in each of the"
+      },
+      {
+        "position": "after_figure",
+        "info": "Figure 3 | HaploChIP assay with RNA polymerase II antibody to estimate allele-specific binding. Open squares show fluorescence intensities (Vic/Fam ratios) of genomic DNA samples with experimentally varied proportions of allele T at SNP rs755467. The linear regression line is shown. Solid triangles show mean fluorescence intensities of immunoprecipitated products from three individuals heterozygous at rs755467. In all three cases, the immunoprecipitated products contained more T than G in the DNA. Estimates greater than 100% for the T-allele imply that no G-allele-bearing DNA fragments were detected in the immunoprecipitated products. Standard deviation of triplicate measurements is shown."
+      },
+      {
+        "position": "after_figure",
+        "info": "heterozygous individuals by quantitative polymerase chain reaction (PCR)9 . In all three cases, we found that in immunoprecipitated DNA, the amount of DNA bearing the T-allele of rs755467 is much higher than that bearing the G-allele (\\$90% T and 10% G) (Fig. 3). This result suggests that the higher expression of CHI3L2 in individuals who are TT homozygotes for rs755467 is due to stronger binding of RNA polymerase II to DNA containing the T-allele than to that containing the G-allele. Thus, results from both functional assays support data from the association analysis and suggest that the polymorphism rs755467 or a marker in strong linkage disequilibrium with it is a determinant that affects the expression level of CHI3L2."
+      }
+    ]
+  }
+]

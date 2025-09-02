@@ -1,0 +1,16 @@
+Paper ID: nature04244
+==================================================
+
+```json
+{
+  "Main research question and objectives": "The main research question of the study was to understand the genetic basis of natural variation in gene expression. The objectives were to map the determinants of gene expression by performing association analysis with dense sets of single-nucleotide polymorphism (SNP) markers from the International HapMap Project for phenotypes with evidence of cis-linked determinants and to perform genome-wide association analysis for a subset of phenotypes with the strongest linkage evidence for cis-acting determinants.",
+  "Key methods and approach": "The study used genotype data from the International HapMap Project and expression phenotypes generated using Affymetrix Human Genome Focus arrays. For 374 phenotypes with evidence of cis-linked determinants, association analysis was performed with SNPs near linkage peaks. For a subset of 27 phenotypes with strong linkage evidence, over 770,000 SNPs across the genome were tested for association. The strength of linkage evidence was compared with the results of association analysis, and the locations of the most strongly associated markers were analyzed to determine their relative positions to the target genes.",
+  "Major findings and results": {
+    "Association analysis results": "Among the 374 phenotypes, 65 (17%) had at least one marker showing evidence of association at the nominal P < 0.001 level, with 12 phenotypes showing extremely strong cis association at P < 10^-10. At a less stringent threshold of P < 0.01, 133 (36%) phenotypes showed evidence of association.",
+    "Linkage vs. association": "The strength of initial linkage findings tended to predict association results. For example, 70% of phenotypes with highly significant cis linkage had evidence of cis association at P < 0.001.",
+    "Location of regulatory sites": "For the 133 phenotypes with cis association at P < 0.01, regulatory sites were found in similar proportions in the 5' (27%) and 3' (34%) regions, and within the target genes (25%).",
+    "Genome-wide association results": "For the 27 phenotypes with strong linkage evidence, genome-wide association analysis confirmed the linkage results and identified the same locations as the genome scans for about 50% of the phenotypes."
+  },
+  "Significance and implications": "The findings suggest that association studies with dense SNP maps can successfully identify susceptibility loci or other determinants for complex traits or diseases. The study demonstrates that linkage evidence can predict association results and that cis regulators are not preferentially enriched in the 5' or 3' regions around target genes. This research provides a methodological framework for mapping genetic determinants of gene expression and has implications for understanding the genetic basis of complex traits and diseases."
+}
+```

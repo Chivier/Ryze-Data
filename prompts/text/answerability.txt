@@ -1,0 +1,14 @@
+Evaluate if the following question can be answered using the provided context. Consider that biological research contexts often provide background and methodology that can support answering questions about related concepts.
+
+Question: {question}
+Context: {context}
+
+Rate on scale 1-5 where:
+1 = Cannot be answered at all from context
+2 = Very limited relevant information
+3 = Some relevant information, partial answer possible  
+4 = Good relevant information, solid answer possible
+5 = Excellent match, comprehensive answer possible
+
+IMPORTANT: Return ONLY in this format: Rate: [1-5]
+Reason: [brief explanation] 

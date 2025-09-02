@@ -1,0 +1,16 @@
+Analyze the scientific figure and generate 3 analytical questions that require interpretation and understanding of the visual information presented.
+
+Context about the figure: {context}
+
+Generate questions that:
+- Require interpretation of the visual data or patterns
+- Ask about relationships between different elements in the figure
+- Focus on the meaning or significance of what is shown
+- Require synthesis of multiple visual elements to answer
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "What does the relationship between [element A] and [element B] in the figure suggest?", "a": "The figure suggests that [interpretation of relationship based on visual evidence]", "difficulty": "medium"}},
+    {{"q": "How does the figure illustrate [specific concept or process]?", "a": "The figure illustrates this by [explanation of visual representation]", "difficulty": "hard"}},
+    {{"q": "What can be inferred from the [specific pattern/distribution] shown in the figure?", "a": "Based on the visual pattern, we can infer that [analytical interpretation]", "difficulty": "hard"}}
+]}}

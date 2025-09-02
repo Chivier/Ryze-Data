@@ -1,0 +1,87 @@
+{
+  "project": {
+    "name": "Ryze-Data-Test",
+    "version": "2.0.0",
+    "environment": "test"
+  },
+  "ocr": {
+    "model": "marker",
+    "batch_size": "${RYZE_BATCH_SIZE:2}",
+    "confidence_threshold": 0.7,
+    "language": "en",
+    "gpu_enabled": "${RYZE_GPU_ENABLED:false}",
+    "gpu_memory_limit": 0.5,
+    "timeout_seconds": 60
+  },
+  "paths": {
+    "data_root": "${RYZE_DATA_ROOT:./tests/data}",
+    "logs_dir": "${RYZE_LOGS_DIR:./tests/logs}",
+    "nature_data": "${RYZE_NATURE_DATA:./tests/data/nature_metadata}",
+    "pdf_dir": "${RYZE_PDF_DIR:./tests/data/pdfs}",
+    "ocr_output": "${RYZE_OCR_OUTPUT:./tests/data/ocr_results}",
+    "abstract_dir": "${RYZE_ABSTRACT_DIR:./tests/data/abstracts}",
+    "figures_dir": "${RYZE_FIGURES_DIR:./tests/data/figures}",
+    "vlm_preprocessing": "${RYZE_VLM_PREPROCESSING:./tests/data/vlm_preprocessing}",
+    "sft_data": "${RYZE_SFT_DATA:./tests/data/sft_data}",
+    "vlm_sft_data": "${RYZE_VLM_SFT_DATA:./tests/data/vlm_sft_data}",
+    "prompts_dir": "${RYZE_PROMPTS_DIR:./prompts}",
+    "temp_dir": "./tests/temp"
+  },
+  "processing": {
+    "parallel_workers": "${RYZE_NUM_WORKERS:1}",
+    "max_retries": 1,
+    "retry_delay_seconds": 1,
+    "quality_threshold": "${RYZE_QUALITY_THRESHOLD:2.0}",
+    "qa_ratio": "${RYZE_QA_RATIO:2}",
+    "max_papers": "${RYZE_MAX_PAPERS:1}"
+  },
+  "servers": {
+    "download_servers": "${RYZE_DOWNLOAD_SERVERS:test-server}",
+    "work_hours_start": "${RYZE_WORK_HOURS_START:0}",
+    "work_hours_end": "${RYZE_WORK_HOURS_END:24}"
+  },
+  "qa_templates": {
+    "version": "v2.0",
+    "templates_dir": "${RYZE_PROMPTS_DIR:./prompts}",
+    "enabled_types": ["factual", "mechanism"]
+  },
+  "parsing_model": {
+    "provider": "openai",
+    "model": "${RYZE_LLM_MODEL:gpt-3.5-turbo}",
+    "api_endpoint": "${OPENAI_BASE_URL:http://localhost:8080/v1}",
+    "api_key_env": "RYZE_PARSING_API_KEY",
+    "max_tokens": 1024,
+    "temperature": 0.3
+  },
+  "qa_generation_model": {
+    "provider": "openai",
+    "model": "${RYZE_LLM_MODEL:gpt-3.5-turbo}",
+    "api_endpoint": "${OPENAI_BASE_URL:http://localhost:8080/v1}",
+    "api_key_env": "RYZE_QA_API_KEY",
+    "max_tokens": 2048,
+    "temperature": 0.5,
+    "batch_inference": false,
+    "batch_size": "${RYZE_BATCH_SIZE:2}"
+  },
+  "vision_model": {
+    "provider": "openai",
+    "model": "${RYZE_VISION_MODEL:gpt-4-vision}",
+    "api_endpoint": "${OPENAI_BASE_URL:http://localhost:8080/v1}",
+    "api_key_env": "OPENAI_API_KEY",
+    "max_tokens": 2048,
+    "temperature": 0.5
+  },
+  "output_formats": {
+    "markdown": true,
+    "json": true,
+    "bibtex": false,
+    "include_images": true,
+    "compress_images": false
+  },
+  "monitoring": {
+    "enable_metrics": false,
+    "metrics_port": "${RYZE_STATUS_PORT:9091}",
+    "log_level": "DEBUG",
+    "log_format": "json"
+  }
+}

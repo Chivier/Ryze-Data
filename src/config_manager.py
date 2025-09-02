@@ -1,8 +1,10 @@
 import json
 import os
+import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass, field
+from dotenv import load_dotenv
 
 
 @dataclass
@@ -18,10 +20,18 @@ class OCRConfig:
 
 @dataclass
 class PathConfig:
-    input_dir: str = "./input"
-    output_dir: str = "./output"
-    temp_dir: str = "./temp"
+    data_root: str = "./data"
     logs_dir: str = "./logs"
+    nature_data: str = "./data/nature_metadata"
+    pdf_dir: str = "./data/pdfs"
+    ocr_output: str = "./data/ocr_results"
+    abstract_dir: str = "./data/abstracts"
+    figures_dir: str = "./data/figures"
+    vlm_preprocessing: str = "./data/vlm_preprocessing"
+    sft_data: str = "./data/sft_data"
+    vlm_sft_data: str = "./data/vlm_sft_data"
+    prompts_dir: str = "./prompts"
+    temp_dir: str = "./temp"
 
 
 @dataclass
@@ -29,14 +39,16 @@ class ProcessingConfig:
     parallel_workers: int = 4
     max_retries: int = 3
     retry_delay_seconds: int = 5
-    quality_threshold: float = 0.85
+    quality_threshold: float = 2.5
+    qa_ratio: int = 8
+    max_papers: int = 1000
 
 
 @dataclass
 class QATemplateConfig:
-    version: str = "v1.2"
-    templates_dir: str = "./templates"
-    enabled_types: list = field(default_factory=lambda: ["factual", "conceptual", "visual", "reference"])
+    version: str = "v2.0"
+    templates_dir: str = "./prompts"
+    enabled_types: list = field(default_factory=lambda: ["factual", "conceptual", "visual", "reference", "mechanism", "application"])
 
 
 @dataclass
@@ -100,8 +112,12 @@ class ConfigManager:
             self.qa_templates: QATemplateConfig = QATemplateConfig()
             self.parsing_model: ModelConfig = ModelConfig()
             self.qa_generation_model: ModelConfig = ModelConfig()
+            self.vision_model: ModelConfig = ModelConfig()
             self.output_formats: OutputFormatConfig = OutputFormatConfig()
             self.monitoring: MonitoringConfig = MonitoringConfig()
+            self.servers: Dict[str, Any] = {}
+            # Load .env file if exists
+            load_dotenv()
     
     def load(self, config_path: str = "config.json") -> None:
         """Load configuration from JSON file and environment variables."""
@@ -110,7 +126,10 @@ class ConfigManager:
         # Load from JSON file if exists
         if self.config_path.exists():
             with open(self.config_path, 'r') as f:
-                self._config = json.load(f)
+                content = f.read()
+                # Replace environment variable references
+                content = self._expand_env_vars(content)
+                self._config = json.loads(content)
             
             # Update dataclass instances with loaded config
             self._update_from_dict()
@@ -120,6 +139,29 @@ class ConfigManager:
         
         # Override with environment variables
         self._load_env_overrides()
+    
+    def _expand_env_vars(self, content: str) -> str:
+        """Expand environment variables in config content.
+        Supports ${VAR_NAME:default_value} syntax.
+        """
+        pattern = r'\$\{([^}:]+)(?::([^}]*))?\}'
+        
+        def replacer(match):
+            var_name = match.group(1)
+            default_value = match.group(2) or ''
+            
+            # Get environment variable value
+            value = os.getenv(var_name, default_value)
+            
+            # Try to preserve JSON types
+            if value.lower() in ('true', 'false'):
+                return value.lower()
+            elif value.isdigit():
+                return value
+            else:
+                return f'"{value}"' if not (value.startswith('"') and value.endswith('"')) else value
+        
+        return re.sub(pattern, replacer, content)
     
     def _update_from_dict(self) -> None:
         """Update dataclass instances from loaded config dictionary."""
@@ -144,6 +186,12 @@ class ConfigManager:
         if "qa_generation_model" in self._config:
             self.qa_generation_model = ModelConfig(**self._config["qa_generation_model"])
         
+        if "vision_model" in self._config:
+            self.vision_model = ModelConfig(**self._config["vision_model"])
+        
+        if "servers" in self._config:
+            self.servers = self._config["servers"]
+        
         if "output_formats" in self._config:
             self.output_formats = OutputFormatConfig(**self._config["output_formats"])
         
@@ -162,6 +210,11 @@ class ConfigManager:
             api_key = os.getenv(self.qa_generation_model.api_key_env)
             if api_key:
                 self.qa_generation_model.api_key = api_key
+        
+        if self.vision_model.api_key_env:
+            api_key = os.getenv(self.vision_model.api_key_env)
+            if api_key:
+                self.vision_model.api_key = api_key
         
         # Override other configs from environment if needed
         # Format: RYZE_<SECTION>_<KEY> = value
@@ -294,10 +347,17 @@ class ConfigManager:
         errors = []
         
         # Check required paths exist or can be created
-        for path_attr in ["input_dir", "output_dir", "temp_dir", "logs_dir"]:
-            path = getattr(self.paths, path_attr)
-            if not Path(path).exists() and path_attr == "input_dir":
-                errors.append(f"Input directory {path} does not exist")
+        critical_paths = ["data_root", "logs_dir"]
+        for path_attr in critical_paths:
+            if hasattr(self.paths, path_attr):
+                path = getattr(self.paths, path_attr)
+                if not Path(path).exists():
+                    # Try to create directory
+                    try:
+                        Path(path).mkdir(parents=True, exist_ok=True)
+                        print(f"Created directory: {path}")
+                    except Exception as e:
+                        errors.append(f"Could not create directory {path}: {e}")
         
         # Check API keys are set for models
         if self.parsing_model.api_key_env and not self.parsing_model.api_key:
@@ -310,8 +370,8 @@ class ConfigManager:
         if not 0 <= self.ocr.confidence_threshold <= 1:
             errors.append("OCR confidence threshold must be between 0 and 1")
         
-        if not 0 <= self.processing.quality_threshold <= 1:
-            errors.append("Processing quality threshold must be between 0 and 1")
+        if self.processing.quality_threshold < 0:
+            errors.append("Processing quality threshold must be positive")
         
         if self.processing.parallel_workers < 1:
             errors.append("Parallel workers must be at least 1")

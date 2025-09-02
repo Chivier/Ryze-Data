@@ -1,0 +1,14 @@
+Based on the provided research text, generate 2 questions about the implications or applications mentioned or suggested in the text. Only ask about applications that can be inferred from the provided content.
+
+Research Text: {context}
+
+Generate questions that:
+- Ask about implications mentioned in the text
+- Focus on potential applications suggested by the research
+- Can be answered based on information or suggestions in the passage
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "What are the potential applications of [finding from text]?", "a": "Based on this research, the applications could include [details from or inferred from text]", "difficulty": "medium"}},
+    {{"q": "How might [discovery from text] impact [field mentioned]?", "a": "According to the findings, this could impact [field] by [explanation based on text]", "difficulty": "hard"}}
+]}} 

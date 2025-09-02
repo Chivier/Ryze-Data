@@ -1,0 +1,14 @@
+Analyze the scientific figure and generate 1 question about extracting specific data, measurements, or quantitative information from the visual.
+
+Context about the figure: {context}
+
+Generate a question that:
+- Asks for specific numerical values, measurements, or data points visible in the figure
+- Focuses on extracting quantitative information from graphs, charts, or diagrams
+- Requires reading scales, axes, legends, or data labels
+- Can be answered with precise information shown in the figure
+
+IMPORTANT: Return ONLY valid JSON in this exact format, no additional text:
+{{"questions": [
+    {{"q": "What [specific measurement/value] is indicated in the figure for [specific condition/element]?", "a": "The figure indicates [specific numerical value or range] for [element/condition]", "difficulty": "medium"}}
+]}}
