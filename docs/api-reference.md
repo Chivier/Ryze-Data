@@ -1,19 +1,22 @@
-# API 参考文档
+# API Reference
 
-## 目录
+## Table of Contents
 
 - [ConfigManager](#configmanager)
-- [PipelineManager](#pipelinemanager)
-- [DataInspector](#datainspector)
+- [QA Generators](#qa-generators)
+  - [QAPair](#qapair)
+  - [BaseQAGenerator](#baseqagenerator)
+  - [TextQAGenerator](#textqagenerator)
+  - [VisionQAGenerator](#visionqagenerator)
+  - [PromptManager](#promptmanager)
 - [OpenAIAPIBalancer](#openaiapibalancer)
-- [Scrapers](#scrapers)
 - [CLI Commands](#cli-commands)
 
 ## ConfigManager
 
-配置管理器，负责加载、验证和管理系统配置。
+Configuration manager for loading, validating, and managing system settings.
 
-### 类定义
+### Class Definition
 
 ```python
 from src.config_manager import ConfigManager
@@ -21,16 +24,12 @@ from src.config_manager import ConfigManager
 config = ConfigManager()
 ```
 
-### 方法
+### Methods
 
 #### `load(config_path: str = "config.json") -> None`
 
-加载配置文件和环境变量。
+Load configuration from file and environment variables.
 
-**参数**：
-- `config_path`: 配置文件路径，默认为 "config.json"
-
-**示例**：
 ```python
 config = ConfigManager()
 config.load("custom_config.json")
@@ -38,257 +37,328 @@ config.load("custom_config.json")
 
 #### `validate() -> bool`
 
-验证配置的有效性。
+Validate configuration settings.
 
-**返回**：
-- `bool`: 配置是否有效
-
-**示例**：
 ```python
 if config.validate():
-    print("配置有效")
-else:
-    print("配置无效，请检查设置")
+    print("Configuration is valid")
 ```
 
 #### `get(key_path: str, default: Any = None) -> Any`
 
-通过点分路径获取配置值。
+Get configuration value by dot-separated path.
 
-**参数**：
-- `key_path`: 配置路径，如 "ocr.model"
-- `default`: 默认值
-
-**返回**：
-- 配置值或默认值
-
-**示例**：
 ```python
 batch_size = config.get("ocr.batch_size", 10)
-model = config.get("parsing_model.model", "gpt-4")
+model = config.get("qa_generation_model.model", "gpt-4")
 ```
 
-#### `save(config_path: Optional[str] = None) -> None`
-
-保存当前配置到文件。
-
-**参数**：
-- `config_path`: 保存路径，默认使用加载时的路径
-
-**示例**：
-```python
-config.ocr.batch_size = 20
-config.save("updated_config.json")
-```
-
-### 配置结构
+### Configuration Dataclasses
 
 ```python
-@dataclass
-class OCRConfig:
-    model: str = "marker"
-    batch_size: int = 10
-    confidence_threshold: float = 0.8
-    language: str = "en"
-    gpu_enabled: bool = True
-    gpu_memory_limit: float = 0.5
-    timeout_seconds: int = 300
-
 @dataclass
 class PathConfig:
     data_root: str = "./data"
-    logs_dir: str = "./logs"
-    nature_data: str = "./data/nature_metadata"
-    pdf_dir: str = "./data/pdfs"
     ocr_output: str = "./data/ocr_results"
-    # ... 更多路径配置
+    vlm_preprocessing: str = "./data/vlm_preprocessing"
+    sft_data: str = "./data/sft_data"
+    vlm_sft_data: str = "./data/vlm_sft_data"
+    prompts_dir: str = "./prompts"
 
 @dataclass
 class ProcessingConfig:
     parallel_workers: int = 4
-    max_retries: int = 3
-    retry_delay_seconds: int = 5
     quality_threshold: float = 2.5
     qa_ratio: int = 8
-    max_papers: int = 1000
+
+@dataclass
+class ModelConfig:
+    provider: str = "openai"
+    model: str = "gpt-4"
+    api_endpoint: str = "https://api.openai.com/v1"
+    api_key_env: str = "OPENAI_API_KEY"
+    max_tokens: int = 2048
+    temperature: float = 0.7
 ```
 
-## PipelineManager
+---
 
-流水线管理器，协调各处理阶段的执行。
+## QA Generators
 
-> **注意**：目前 PipelineManager 提供了基础框架，实际实现的阶段仅包括 `scrape` 和 `ocr`。
+The generators module provides classes for generating question-answer pairs from scientific papers.
 
-### 类定义
+### QAPair
+
+Dataclass representing a single question-answer pair.
 
 ```python
-from src.pipeline_manager import PipelineManager
+from src.generators import QAPair
 
-pipeline = PipelineManager(config)
-```
-
-### 方法
-
-#### `add_stage(name, description, function, dependencies, output_path)`
-
-添加处理阶段到流水线。
-
-**参数**：
-- `name`: 阶段名称
-- `description`: 阶段描述
-- `function`: 执行函数
-- `dependencies`: 依赖的阶段列表
-- `output_path`: 输出路径
-
-**示例**：
-```python
-pipeline.add_stage(
-    name="custom_stage",
-    description="自定义处理阶段",
-    function=custom_processor,
-    dependencies=["ocr"],
-    output_path="/data/custom_output"
+qa = QAPair(
+    question="What is CRISPR-Cas9?",
+    answer="CRISPR-Cas9 is a gene editing technology...",
+    difficulty="medium",
+    question_type="factual",
+    paper_id="nature04244",
+    section="section_0",
+    context="The research text...",
+    quality_score=4.5,
+    metadata={"prompt_template": "factual.txt"}
 )
 ```
 
-#### `run(stages: Optional[List[str]], skip_existing: bool, force: bool) -> PipelineResult`
+#### Attributes
 
-运行流水线。
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `question` | str | The question text |
+| `answer` | str | The answer text |
+| `difficulty` | str | Difficulty level (easy/medium/hard) |
+| `question_type` | str | Type of question (factual/mechanism/application) |
+| `paper_id` | str | Source paper identifier |
+| `section` | str | Source section identifier |
+| `context` | str | Contextual text (truncated) |
+| `quality_score` | float | Quality score (0-5) |
+| `metadata` | dict | Additional metadata |
 
-**参数**：
-- `stages`: 要运行的阶段列表，None 表示全部
-- `skip_existing`: 是否跳过已存在输出的阶段
-- `force`: 强制运行，即使有错误也继续
-
-**返回**：
-- `PipelineResult`: 执行结果
-
-**示例**：
-```python
-# 运行特定阶段
-result = pipeline.run(stages=["scrape", "ocr"])
-
-# 运行全部阶段，跳过已完成的
-result = pipeline.run(skip_existing=True)
-```
-
-#### `get_status() -> Dict[str, Any]`
-
-获取流水线状态。
-
-**返回**：
-- 包含各阶段状态的字典
-
-**示例**：
-```python
-status = pipeline.get_status()
-for stage_name, info in status['stages'].items():
-    print(f"{stage_name}: {info['status']}")
-```
-
-#### `save_state(filepath: str) -> None`
-
-保存流水线状态到文件。
-
-**参数**：
-- `filepath`: 保存路径
-
-**示例**：
-```python
-pipeline.save_state("pipeline_state.json")
-```
-
-### PipelineResult 结构
+#### Methods
 
 ```python
-@dataclass
-class PipelineResult:
-    total_stages: int
-    completed_stages: int
-    failed_stages: int
-    skipped_stages: int
-    total_time: float
-    stage_results: Dict[str, Dict[str, Any]]
+# Convert to dictionary
+qa_dict = qa.to_dict()
+
+# Convert to JSONL line
+jsonl_line = qa.to_jsonl_line()
 ```
 
-## DataInspector
+---
 
-数据检查器，用于检查和采样各阶段数据。
+### BaseQAGenerator
 
-### 类定义
+Abstract base class for QA generators with shared functionality.
 
 ```python
-from src.cli.data_inspector import DataInspector
+from src.generators import BaseQAGenerator
 
-inspector = DataInspector(config)
+class CustomGenerator(BaseQAGenerator):
+    def run(self):
+        # Implementation
+        pass
+
+    def process_paper(self, paper_path):
+        # Implementation
+        pass
 ```
 
-### 方法
+#### Constructor
 
-#### `get_stage_info(stage: str) -> Dict[str, Any]`
-
-获取指定阶段的信息。
-
-**参数**：
-- `stage`: 阶段名称
-
-**返回**：
-- 包含阶段信息的字典
-
-**示例**：
 ```python
-info = inspector.get_stage_info("ocr")
-print(f"文件数量: {info['count']}")
-print(f"总大小: {info['total_size']}")
+def __init__(
+    self,
+    output_dir: str,
+    model: str,
+    qa_ratio: int = 8,
+    config: Optional[ConfigManager] = None
+)
 ```
 
-#### `sample_file(file_path: str, sample_size: int = 5) -> Dict[str, Any]`
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `output_dir` | str | Directory to save generated QA pairs |
+| `model` | str | Model name for API calls |
+| `qa_ratio` | int | Target QA pairs per unit (default: 8) |
+| `config` | ConfigManager | Optional config manager instance |
 
-采样文件内容。
+#### Key Methods
 
-**参数**：
-- `file_path`: 文件路径
-- `sample_size`: 采样大小
-
-**返回**：
-- 包含文件样本的字典
-
-**示例**：
 ```python
-sample = inspector.sample_file("/data/test.json", sample_size=3)
-print(sample['content'])
+# Initialize API balancer with keys
+generator._init_balancer(api_keys=["sk-key1", "sk-key2"])
+
+# Filter QA pairs by quality score
+filtered = generator._filter_qa_by_quality(qa_pairs, threshold=2.5)
+
+# Parse JSON from LLM response (handles markdown code blocks)
+parsed = generator._parse_json_response(response_text)
+
+# Save QA pairs to JSONL file
+path = generator._save_qa_pairs(qa_pairs, "paper_qa")
+
+# Create rich progress bar
+with generator.create_progress() as progress:
+    task = progress.add_task("Processing...", total=100)
 ```
 
-#### `get_random_sample(stage: str, count: int = 1) -> List[Dict[str, Any]]`
+---
 
-从阶段随机采样文件。
+### TextQAGenerator
 
-**参数**：
-- `stage`: 阶段名称
-- `count`: 采样数量
+Generate QA pairs from OCR-processed markdown files.
 
-**返回**：
-- 样本列表
-
-**示例**：
 ```python
-samples = inspector.get_random_sample("ocr", count=5)
-for sample in samples:
-    print(sample['file'])
+from src.generators import TextQAGenerator
+
+generator = TextQAGenerator(
+    ocr_dir="./data/ocr_results",
+    abstract_dir="./data/abstracts",
+    output_dir="./data/sft_data",
+    model="gpt-4o-mini",
+    qa_ratio=8,
+    quality_filter=False,
+    quality_threshold=2.5,
+    max_section_chars=3000
+)
+
+generator.run()
 ```
 
-### 支持的阶段
+#### Constructor Parameters
 
-| 阶段名称 | 描述 | 文件模式 |
-|---------|------|----------|
-| scraping | 爬取的元数据 | *.csv |
-| ocr | OCR 结果 | */*.md |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `ocr_dir` | str | - | Directory containing OCR markdown files |
+| `abstract_dir` | str | - | Directory containing paper abstracts |
+| `output_dir` | str | - | Output directory for QA JSONL files |
+| `model` | str | - | Model name for API calls |
+| `qa_ratio` | int | 8 | Target QA pairs per section |
+| `quality_filter` | bool | False | Enable quality filtering |
+| `quality_threshold` | float | 2.5 | Minimum quality score |
+| `max_section_chars` | int | 3000 | Maximum characters per section chunk |
+
+#### Prompt Configuration
+
+| Prompt Type | Questions | Description |
+|-------------|-----------|-------------|
+| `factual` | 3 | Fact-based questions about findings |
+| `mechanism` | 2 | Questions about how things work |
+| `application` | 2 | Questions about practical applications |
+
+#### Output Format
+
+```jsonl
+{"question": "What was the editing efficiency achieved?", "answer": "The study achieved 95% editing efficiency.", "difficulty": "easy", "question_type": "factual", "paper_id": "sample_paper", "section": "section_0", "context": "...", "quality_score": 0.0, "metadata": {}}
+```
+
+---
+
+### VisionQAGenerator
+
+Generate QA pairs from scientific figures using vision models.
+
+```python
+from src.generators import VisionQAGenerator
+
+generator = VisionQAGenerator(
+    vlm_dir="./data/vlm_preprocessing",
+    abstract_dir="./data/abstracts",
+    output_dir="./data/vlm_sft_data",
+    model="gpt-4o-mini",
+    workers=4,
+    qa_ratio=8,
+    quality_filter=False,
+    quality_threshold=2.5
+)
+
+generator.run()
+```
+
+#### Constructor Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `vlm_dir` | str | - | Directory with figure context JSON and images |
+| `abstract_dir` | str | - | Directory containing paper abstracts |
+| `output_dir` | str | - | Output directory for vision QA JSONL files |
+| `model` | str | - | Vision model name for API calls |
+| `workers` | int | 4 | Number of parallel workers |
+| `qa_ratio` | int | 8 | Target QA pairs per figure |
+| `quality_filter` | bool | False | Enable quality filtering |
+| `quality_threshold` | float | 2.5 | Minimum quality score |
+
+#### Prompt Configuration
+
+| Prompt Type | Questions | Description |
+|-------------|-----------|-------------|
+| `visual-factual` | 3 | Questions about visible elements |
+| `visual-mechanism` | 2 | Questions about depicted processes |
+| `visual-data-extraction` | 1 | Questions about specific data values |
+| `visual-analysis` | 3 | Questions requiring figure interpretation |
+| `visual-comparison` | 2 | Questions comparing elements |
+
+#### Input Format (Figure Context JSON)
+
+```json
+{
+  "paper_id": "sample_paper",
+  "figures": [
+    {
+      "id": "Figure_1",
+      "label": "Figure 1",
+      "image_path": "sample_paper_Figure_1.jpeg",
+      "caption": "Comparison of grain width...",
+      "related_info": {
+        "before": "Text before figure...",
+        "after": "Text after figure..."
+      }
+    }
+  ]
+}
+```
+
+#### Output Format (LlamaFactory Compatible)
+
+```jsonl
+{"messages": [{"role": "user", "content": "What does the figure show? <image>"}, {"role": "assistant", "content": "The figure shows a bar chart comparing..."}], "images": ["data/vlm_preprocessing/sample_paper_Figure_1.jpeg"], "metadata": {"paper_id": "sample_paper", "figure_id": "Figure_1", "question_type": "factual", "difficulty": "easy"}}
+```
+
+---
+
+### PromptManager
+
+Manages loading and formatting of prompt templates.
+
+```python
+from src.generators import PromptManager
+
+pm = PromptManager(prompts_dir="./prompts")
+```
+
+#### Methods
+
+```python
+# Get formatted text prompt
+prompt = pm.get_text_prompt(
+    prompt_type="factual",
+    context="The research findings show..."
+)
+
+# Get formatted vision prompt
+prompt = pm.get_vision_prompt(
+    prompt_type="visual-factual",
+    context="Figure showing bar chart..."
+)
+
+# Get quality evaluation prompt
+prompt = pm.get_quality_prompt(
+    question="What is X?",
+    answer="X is Y.",
+    context="Original text...",
+    is_vision=False
+)
+
+# List available prompts
+text_prompts = pm.list_text_prompts()    # ['factual', 'mechanism', 'application', 'quality']
+vision_prompts = pm.list_vision_prompts()  # ['visual-factual', ...]
+
+# Clear template cache
+pm.clear_cache()
+```
+
+---
 
 ## OpenAIAPIBalancer
 
-OpenAI API 密钥负载均衡器，支持多 API 密钥并发请求和自动重试。
-
-### 类定义
+API key load balancer for OpenAI requests with automatic retry and failover.
 
 ```python
 from src.api_key_balancer import OpenAIAPIBalancer
@@ -296,432 +366,155 @@ from src.api_key_balancer import OpenAIAPIBalancer
 balancer = OpenAIAPIBalancer(api_keys=["sk-key1", "sk-key2", "sk-key3"])
 ```
 
-### 构造函数
+### Constructor
 
-#### `__init__(api_keys: List[str], max_queue_size: int = 1000)`
-
-初始化负载均衡器。
-
-**参数**：
-- `api_keys`: API 密钥列表
-- `max_queue_size`: 最大队列大小
-
-**示例**：
 ```python
-import os
-
-api_keys = [
-    os.environ.get("OPENAI_API_KEY_1"),
-    os.environ.get("OPENAI_API_KEY_2"),
-]
-balancer = OpenAIAPIBalancer(api_keys)
+def __init__(self, api_keys: List[str], max_queue_size: int = 1000)
 ```
 
-### 方法
+### Methods
 
-#### `submit_request(method: str, params: Dict[str, Any], callback: Optional[Callable], max_retries: int = 3) -> str`
+#### `submit_chat_completion(model, messages, callback, **kwargs) -> str`
 
-提交请求到负载均衡器。
+Submit a chat completion request.
 
-**参数**：
-- `method`: API 方法名（如 "chat.completions.create"）
-- `params`: API 参数
-- `callback`: 可选的回调函数
-- `max_retries`: 最大重试次数
-
-**返回**：
-- 请求 ID
-
-**支持的方法**：
-- `chat.completions.create`
-- `completions.create`
-- `embeddings.create`
-- `images.generate`
-- `audio.transcriptions.create`
-- `audio.translations.create`
-
-#### `submit_chat_completion(model: str, messages: List[Dict[str, str]], callback: Optional[Callable] = None, **kwargs) -> str`
-
-提交聊天完成请求（便捷方法）。
-
-**参数**：
-- `model`: 模型名称
-- `messages`: 消息列表
-- `callback`: 可选的回调函数
-- `**kwargs`: 其他 OpenAI API 参数
-
-**返回**：
-- 请求 ID
-
-**示例**：
 ```python
 request_id = balancer.submit_chat_completion(
     model="gpt-4",
     messages=[
-        {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Hello!"}
     ],
-    temperature=0.7
+    temperature=0.7,
+    max_retries=3
 )
 ```
 
-#### `submit_embedding(input: str, model: str = "text-embedding-ada-002", **kwargs) -> str`
+#### `get_result(timeout) -> Optional[APIRequest]`
 
-提交嵌入请求。
+Get a processed result from the queue.
 
-**参数**：
-- `input`: 输入文本
-- `model`: 模型名称
-- `**kwargs`: 其他参数
-
-**返回**：
-- 请求 ID
-
-**示例**：
 ```python
-request_id = balancer.submit_embedding(
-    input="Hello, world!",
-    model="text-embedding-ada-002"
-)
+result = balancer.get_result(timeout=30.0)
+if result and result.status == RequestStatus.SUCCESS:
+    content = result.result.choices[0].message.content
 ```
-
-#### `get_result(timeout: Optional[float] = None) -> Optional[APIRequest]`
-
-获取处理结果。
-
-**参数**：
-- `timeout`: 超时时间（秒）
-
-**返回**：
-- 处理完成的请求对象，超时返回 None
-
-#### `get_result_by_id(request_id: str, timeout: Optional[float] = None) -> Optional[APIRequest]`
-
-获取特定 ID 的处理结果。
-
-**参数**：
-- `request_id`: 请求 ID
-- `timeout`: 超时时间（秒，默认 60）
-
-**返回**：
-- 处理完成的请求对象，未找到返回 None
-
-#### `wait_for_result(request_id: str, timeout: float = 60) -> APIRequest`
-
-等待特定请求的结果。
-
-**参数**：
-- `request_id`: 请求 ID
-- `timeout`: 超时时间
-
-**返回**：
-- 处理完成的请求对象
-
-**异常**：
-- `TimeoutError`: 如果超时
-
-**示例**：
-```python
-request_id = balancer.submit_chat_completion(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Hello"}]
-)
-
-try:
-    result = balancer.wait_for_result(request_id, timeout=30)
-    if result.status == RequestStatus.SUCCESS:
-        print(result.result.choices[0].message.content)
-except TimeoutError:
-    print("请求超时")
-```
-
-#### `get_all_results() -> List[APIRequest]`
-
-获取所有当前可用的结果。
-
-**返回**：
-- 结果列表
 
 #### `get_statistics() -> Dict[str, Any]`
 
-获取统计信息。
+Get balancer statistics.
 
-**返回**：
-- 统计信息字典
-
-**示例**：
 ```python
 stats = balancer.get_statistics()
-print(f"总请求数: {stats['total_requests']}")
-print(f"待处理: {stats['pending_requests']}")
-print(f"重试中: {stats['retry_requests']}")
-
-for worker in stats['workers']:
-    print(f"Worker {worker['thread_id']}: "
-          f"processed={worker['processed']}, "
-          f"failed={worker['failed']}")
+# {
+#     "total_requests": 100,
+#     "pending_requests": 5,
+#     "retry_requests": 2,
+#     "workers": [{"thread_id": 0, "processed": 35, "failed": 2}, ...]
+# }
 ```
 
 #### `shutdown(wait: bool = True)`
 
-关闭负载均衡器。
+Shutdown the balancer.
 
-**参数**：
-- `wait`: 是否等待所有请求处理完成
-
-**示例**：
 ```python
-# 优雅关闭，等待所有请求完成
-balancer.shutdown(wait=True)
-
-# 立即关闭
-balancer.shutdown(wait=False)
+balancer.shutdown(wait=True)  # Wait for pending requests
 ```
 
-### APIRequest 结构
+### RequestStatus Enum
 
 ```python
-@dataclass
-class APIRequest:
-    id: str                              # 请求 ID
-    method: str                          # API 方法
-    params: Dict[str, Any]               # 请求参数
-    callback: Optional[Callable] = None  # 回调函数
-    retry_count: int = 0                 # 当前重试次数
-    max_retries: int = 3                 # 最大重试次数
-    result: Any = None                   # 成功时的结果
-    error: Any = None                    # 失败时的错误
-    status: RequestStatus = RequestStatus.PENDING  # 请求状态
-
 class RequestStatus(Enum):
-    PENDING = "pending"       # 等待处理
-    PROCESSING = "processing" # 处理中
-    SUCCESS = "success"       # 成功
-    FAILED = "failed"         # 失败
-    RETRYING = "retrying"     # 重试中
+    PENDING = "pending"
+    PROCESSING = "processing"
+    SUCCESS = "success"
+    FAILED = "failed"
+    RETRYING = "retrying"
 ```
 
-### 使用回调函数
-
-```python
-def on_complete(result, error=None):
-    if error:
-        print(f"请求失败: {error}")
-    else:
-        print(f"响应: {result.choices[0].message.content}")
-
-balancer.submit_chat_completion(
-    model="gpt-4",
-    messages=[{"role": "user", "content": "Hello"}],
-    callback=on_complete
-)
-```
-
-## Scrapers
-
-### NatureScraper
-
-Nature 文章爬虫。
-
-```python
-from src.scrapers.nature_scraper import NatureScraper
-
-scraper = NatureScraper(output_dir="./data/nature_metadata")
-```
-
-#### 方法
-
-##### `run() -> None`
-
-运行爬虫，爬取所有文章元数据。
-
-**示例**：
-```python
-scraper = NatureScraper(output_dir="./nature_data")
-scraper.run()
-```
-
-#### 输出格式
-
-CSV 文件，包含以下字段：
-- `title`: 文章标题
-- `url`: 文章 URL
-- `abstract`: 摘要
-- `open_access`: 是否开放获取
-- `date`: 发布日期
-- `author`: 作者列表
+---
 
 ## CLI Commands
 
-### 主命令
+### Main Command
 
 ```bash
-python -m src.cli.main [OPTIONS] COMMAND [ARGS]
+uv run python -m src.cli.main [OPTIONS] COMMAND [ARGS]
 ```
 
-**全局选项**：
-- `--config, -c`: 配置文件路径
-- `--env, -e`: 环境文件路径
+**Global Options**:
+- `--config, -c`: Configuration file path
+- `--env, -e`: Environment file path
 
-### 已实现的子命令
+### generate-qa
 
-#### `scrape`
-
-爬取 Nature 文章元数据。
+Generate QA pairs from processed data.
 
 ```bash
-python -m src.cli.main scrape
+uv run python -m src.cli.main generate-qa [OPTIONS]
 ```
 
-#### `ocr`
+**Options**:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--mode` | choice | both | Generation mode: text, vision, or both |
+| `--model` | text | config | Model to use for generation |
+| `--workers, -w` | int | 4 | Parallel workers (vision mode) |
+| `--qa-ratio` | int | 8 | QA pairs per section/figure |
+| `--quality-filter` | flag | off | Enable quality filtering |
 
-运行 OCR 处理。
+**Examples**:
+```bash
+# Text QA only
+uv run python -m src.cli.main generate-qa --mode text
+
+# Vision QA with 8 workers
+uv run python -m src.cli.main generate-qa --mode vision --workers 8
+
+# Both modes with quality filtering
+uv run python -m src.cli.main generate-qa --mode both --quality-filter
+```
+
+### pipeline
+
+Run complete processing pipeline.
 
 ```bash
-python -m src.cli.main ocr [OPTIONS]
+uv run python -m src.cli.main pipeline [OPTIONS]
 ```
 
-**选项**：
-- `--input-dir`: 输入目录
-- `--output-dir`: 输出目录
-- `--batch-size`: 批处理大小
+**Options**:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--stages, -s` | multiple | all | Stages to run: scrape, download, ocr, extract, qa |
+| `--workers, -w` | int | 4 | Number of parallel workers |
+| `--quality-filter` | flag | off | Enable QA quality filtering |
 
-#### `inspect`
+**Examples**:
+```bash
+# Run all stages
+uv run python -m src.cli.main pipeline
 
-数据检查命令组。
+# Run specific stages
+uv run python -m src.cli.main pipeline --stages ocr --stages qa
 
-##### `inspect list`
+# With quality filtering
+uv run python -m src.cli.main pipeline --stages qa --quality-filter
+```
 
-列出所有可检查的阶段。
+### Other Commands
 
 ```bash
-python -m src.cli.main inspect list
-```
+# Scrape Nature metadata
+uv run python -m src.cli.main scrape
 
-##### `inspect stage`
+# Run OCR processing
+uv run python -m src.cli.main ocr --input-dir <pdf_dir> --output-dir <output_dir>
 
-检查特定阶段。
+# Show configuration
+uv run python -m src.cli.main config-show
 
-```bash
-python -m src.cli.main inspect stage STAGE_NAME [OPTIONS]
-```
-
-**参数**：
-- `STAGE_NAME`: 阶段名称
-
-**选项**：
-- `--sample, -s`: 随机采样数量
-- `--detailed, -d`: 显示详细内容
-
-##### `inspect file`
-
-检查特定文件。
-
-```bash
-python -m src.cli.main inspect file FILE_PATH [OPTIONS]
-```
-
-**参数**：
-- `FILE_PATH`: 文件路径
-
-**选项**：
-- `--lines, -l`: 显示的行数
-
-##### `inspect all`
-
-显示所有阶段概览。
-
-```bash
-python -m src.cli.main inspect all [OPTIONS]
-```
-
-**选项**：
-- `--verbose, -v`: 显示详细信息
-
-##### `inspect stats`
-
-显示统计信息。
-
-```bash
-python -m src.cli.main inspect stats
-```
-
-#### `config-show`
-
-显示当前配置。
-
-```bash
-python -m src.cli.main config-show
-```
-
-## 错误处理
-
-### 异常类型
-
-```python
-class ConfigurationError(Exception):
-    """配置错误"""
-    pass
-
-class ProcessingError(Exception):
-    """处理错误"""
-    pass
-
-class ValidationError(Exception):
-    """验证错误"""
-    pass
-```
-
-### 错误处理模式
-
-```python
-try:
-    result = pipeline.run(stages=["ocr"])
-except ProcessingError as e:
-    logger.error(f"处理失败: {e}")
-    # 错误恢复逻辑
-except Exception as e:
-    logger.critical(f"未预期的错误: {e}")
-    # 紧急处理
-```
-
-## 扩展 API
-
-### 自定义处理器
-
-```python
-from abc import ABC, abstractmethod
-
-class BaseProcessor(ABC):
-    @abstractmethod
-    def process(self, input_data: Any) -> Any:
-        """处理输入数据"""
-        pass
-
-    @abstractmethod
-    def validate_input(self, input_data: Any) -> bool:
-        """验证输入"""
-        pass
-
-    @abstractmethod
-    def validate_output(self, output_data: Any) -> bool:
-        """验证输出"""
-        pass
-```
-
-### 自定义爬虫
-
-```python
-from abc import ABC, abstractmethod
-
-class BaseScraper(ABC):
-    @abstractmethod
-    def scrape(self) -> List[Dict[str, Any]]:
-        """爬取数据"""
-        pass
-
-    @abstractmethod
-    def parse(self, html: str) -> Dict[str, Any]:
-        """解析 HTML"""
-        pass
+# Inspect data
+uv run python -m src.cli.main inspect all
+uv run python -m src.cli.main inspect stage ocr --sample 5
 ```

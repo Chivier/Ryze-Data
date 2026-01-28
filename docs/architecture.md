@@ -44,13 +44,11 @@ Ryze-Data 是一个模块化、可扩展的科学文献处理框架，采用流�
 
 ```
 Ryze-Data/
-├── .env.example                 # 环境变量模板
-├── .env.test                    # 测试环境配置
-├── config.example.json          # 配置模板（支持环境变量）
-├── config.test.json             # 测试配置
-├── requirements.txt             # Python 依赖
+├── pyproject.toml               # 项目配置 (uv)
+├── config.json                  # 运行时配置
+├── .env                         # 环境变量（不提交）
+├── requirements.txt             # Python 依赖（兼容 pip）
 ├── pytest.ini                   # Pytest 配置
-├── run_tests.py                 # 测试运行脚本
 ├── README.md                    # 项目文档
 ├── LICENSE                      # AGPL-3.0 许可证
 │
@@ -66,29 +64,21 @@ Ryze-Data/
 │   │   ├── main.py              # CLI 主入口
 │   │   └── data_inspector.py    # 数据检查和采样工具
 │   │
+│   ├── generators/              # QA 生成器模块
+│   │   ├── __init__.py          # 包导出
+│   │   ├── base_generator.py    # 抽象基类和 QAPair
+│   │   ├── prompt_manager.py    # 提示词模板管理
+│   │   ├── text_qa_generator.py # 文本 QA 生成
+│   │   └── vision_qa_generator.py # 视觉 QA 生成
+│   │
 │   └── scrapers/                # 数据源爬虫
 │       ├── __init__.py
-│       ├── base.py              # 基础爬虫接口
 │       └── nature_scraper.py    # Nature 文章爬虫
 │
 ├── tests/                       # 测试套件
-│   ├── __init__.py
 │   ├── conftest.py              # 测试夹具和配置
-│   ├── README.md                # 测试文档
-│   │
-│   ├── unit/                    # 单元测试
-│   │   ├── __init__.py
-│   │   ├── test_config_manager.py
-│   │   └── test_data_inspector.py
-│   │
-│   ├── integration/             # 集成测试
-│   │   ├── __init__.py
-│   │   └── test_pipeline.py
-│   │
-│   └── fixtures/                # 测试数据
-│       ├── sample.pdf
-│       ├── sample_metadata.csv
-│       └── mock_responses.json
+│   ├── test_generators.py       # QA 生成器测试
+│   └── README.md                # 测试文档
 │
 ├── docs/                        # 文档
 │   ├── architecture.md          # 架构设计文档
@@ -97,34 +87,31 @@ Ryze-Data/
 │   ├── data-formats.md          # 数据格式规范
 │   ├── development.md           # 开发指南
 │   ├── troubleshooting.md       # 故障排除指南
-│   │
 │   └── zh-CN/                   # 中文文档
-│       ├── README.md            # 中文项目说明
-│       ├── architecture.md      # 架构设计文档
-│       ├── configuration.md     # 配置指南
-│       └── development.md       # 开发指南
 │
 ├── prompts/                     # LLM 提示词模板
-│   ├── text_qa_prompt.txt       # 文本 QA 生成提示词
-│   └── vision_qa_prompt.txt     # 视觉 QA 生成提示词
+│   ├── text/                    # 文本 QA 提示词
+│   │   ├── factual.txt
+│   │   ├── mechanism.txt
+│   │   ├── application.txt
+│   │   └── quality.txt
+│   └── vision/                  # 视觉 QA 提示词
+│       ├── visual-factual.txt
+│       ├── visual-mechanism.txt
+│       ├── visual-analysis.txt
+│       ├── visual-comparison.txt
+│       ├── visual-data-extraction.txt
+│       └── visual-quality.txt
 │
 ├── data/                        # 数据目录（git 忽略）
 │   ├── nature_metadata/         # 爬取的元数据
 │   ├── pdfs/                    # 下载的 PDF 文件
-│   ├── ocr_results/             # OCR 处理结果
-│   ├── figures/                 # 提取的图表
+│   ├── ocr_results/             # OCR 处理结果（Markdown）
+│   ├── vlm_preprocessing/       # 图表上下文 JSON
 │   ├── sft_data/                # 文本 QA 训练数据
 │   └── vlm_sft_data/            # 视觉 QA 训练数据
 │
 └── data-sample/                 # 测试用样本数据
-    ├── nature_metadata/
-    │   └── sample.csv
-    ├── pdfs/
-    │   └── sample.pdf
-    └── ocr_results/
-        └── sample/
-            ├── sample.md
-            └── sample_meta.json
 ```
 
 ### 文件用途说明
@@ -132,12 +119,15 @@ Ryze-Data/
 | 文件/目录 | 用途 | 实现状态 |
 |-----------|------|----------|
 | `src/config_manager.py` | 统一配置管理 | ✅ 已实现 |
-| `src/pipeline_manager.py` | 流水线编排逻辑 | ✅ 框架已实现 |
+| `src/pipeline_manager.py` | 流水线编排逻辑 | ✅ 已实现 |
 | `src/api_key_balancer.py` | LLM API 负载均衡 | ✅ 已实现 |
 | `src/chunked-ocr.py` | 分块 OCR 处理 | ✅ 已实现 |
 | `src/cli/main.py` | CLI 命令实现 | ✅ 已实现 |
 | `src/cli/data_inspector.py` | 数据检查工具 | ✅ 已实现 |
 | `src/scrapers/nature_scraper.py` | Nature 文章爬虫 | ✅ 已实现 |
+| `src/generators/` | QA 生成器模块 | ✅ 已实现 |
+| `src/generators/text_qa_generator.py` | 文本 QA 生成 | ✅ 已实现 |
+| `src/generators/vision_qa_generator.py` | 视觉 QA 生成 | ✅ 已实现 |
 | `tests/` | 完整测试套件 | ✅ 已实现 |
 | `docs/` | 技术文档 | ✅ 已实现 |
 
@@ -196,10 +186,11 @@ Ryze-Data/
 | 阶段 | 状态 | 描述 |
 |------|------|------|
 | scrape | ✅ 已实现 | 从 Nature 等来源爬取文章元数据 |
-| ocr | ✅ 已实现 | 使用 marker 引擎进行 OCR 处理 |
 | download | 📋 计划中 | PDF 文件批量下载 |
+| ocr | ✅ 已实现 | 使用 marker 引擎进行 OCR 处理 |
 | extract | 📋 计划中 | 图表和结构化内容提取 |
-| generate-qa | 📋 计划中 | 问答对生成 |
+| generate-qa (text) | ✅ 已实现 | 从 OCR Markdown 生成文本 QA |
+| generate-qa (vision) | ✅ 已实现 | 从图表生成视觉 QA（LlamaFactory 格式） |
 
 ## 核心模块
 
@@ -335,8 +326,8 @@ Web Sources → Scrapers → Metadata CSV
 |------|---------|----------|------|
 | Scraping | HTML | CSV | ✅ 已实现 |
 | OCR | PDF | Markdown + Images | ✅ 已实现 |
-| Processing | Markdown | Structured JSON | 📋 计划中 |
-| Generation | JSON | JSONL (QA pairs) | 📋 计划中 |
+| Text QA | Markdown | JSONL (QA pairs) | ✅ 已实现 |
+| Vision QA | JSON + Images | JSONL (LlamaFactory) | ✅ 已实现 |
 
 ### 3. 数据存储策略
 

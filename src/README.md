@@ -9,8 +9,9 @@
 | Config Manager | ✅ Implemented | `config_manager.py` - Configuration management |
 | NatureScraper | ✅ Implemented | `scrapers/nature_scraper.py` - Nature article scraping |
 | DataInspector | ✅ Implemented | `cli/data_inspector.py` - Data inspection tools |
+| Text QA Generator | ✅ Implemented | `generators/text_qa_generator.py` - Text QA generation |
+| Vision QA Generator | ✅ Implemented | `generators/vision_qa_generator.py` - Vision QA generation |
 | Content Parser | 📋 Planned | Structured content extraction |
-| QA Generator | 📋 Planned | Question-answer pair generation |
 
 ## Module 1: OCR Model ✅
 
@@ -33,43 +34,7 @@ PDF_Path
 └── metadata.json(optional)
 ```
 
-metadata.json(optional): If some metadata is provided, it will be used to filter the papers or provide some extra information.
-
-```json
-{
-    "paper1": {
-        "title": "Paper 1",
-        "author": "Author 1",
-        "year": 2021,
-        "some_other_metadata":
-        ...
-    },
-    "paper2": {
-        "title": "Paper 2",
-        "author": "Author 2",
-        "year": 2022,
-        "some_other_metadata":
-        ...
-    },
-    ...
-}
-```
-
-### Process:
-- Use OCR model to convert PDF to markdown format
-- Save markdown to output path, create a new folder for each paper, if the paper contains images, save the images to the folder/images
-
 ### Output:
-
-- OCR Status Csv Record
-
-```csv
-paper_name, original_pdf_path, ocr_status, ocr_time, ocr_result_path
-paper1, /path/to/paper1.pdf, success, 2021-01-01 12:00:00, /path/to/paper1_ocr
-paper2, /path/to/paper2.pdf, failed, 2021-01-01 12:00:00, /path/to/paper2_ocr
-...
-```
-
 - OCR Result Folder
 ```
 OCR_Result_Folder
@@ -79,7 +44,7 @@ OCR_Result_Folder
 |   ├── ...
 |   ├── figureN.png
 |   ├── paper1.md (exact same name with this folder)
-|   └── paper1_meta.json (ocr metadata for this paper, use to check markdown content)
+|   └── paper1_meta.json (ocr metadata for this paper)
 ├── paper2
 ├── ...
 └── paperN
@@ -102,87 +67,122 @@ Multi-API key load balancer with automatic retry and fallback.
 ```python
 from src.api_key_balancer import OpenAIAPIBalancer
 
-# Initialize with multiple API keys
-balancer = OpenAIAPIBalancer(
-    api_keys=["key1", "key2", "key3"],
-    num_workers=4
-)
+balancer = OpenAIAPIBalancer(api_keys=["key1", "key2", "key3"])
 
-# Submit chat completion request
 request_id = balancer.submit_chat_completion(
     model="gpt-4",
     messages=[{"role": "user", "content": "Hello"}]
 )
 
-# Get result
-result = balancer.get_result(request_id, timeout=60)
-
-# Get statistics
+result = balancer.get_result(timeout=60)
 stats = balancer.get_statistics()
 ```
 
-## Module 3: Content Parser (📋 Planned)
+## Module 3: QA Generators ✅
+
+**Implementation:** `src/generators/`
+
+### Components:
+
+| File | Description |
+|------|-------------|
+| `base_generator.py` | Abstract base class with `QAPair` dataclass |
+| `prompt_manager.py` | Loads and formats prompt templates |
+| `text_qa_generator.py` | Generates text QA from OCR markdown |
+| `vision_qa_generator.py` | Generates vision QA from figures |
+
+### Text QA Generator
+
+Generates question-answer pairs from OCR-processed markdown files.
+
+**Input:** OCR markdown files (`data/ocr_results/*.md`)
+
+**Output:** JSONL files (`data/sft_data/{paper_id}_qa.jsonl`)
+
+**Prompt Types:**
+- `factual` - 3 questions about specific findings
+- `mechanism` - 2 questions about how things work
+- `application` - 2 questions about applications
+
+```python
+from src.generators import TextQAGenerator
+
+generator = TextQAGenerator(
+    ocr_dir="./data/ocr_results",
+    abstract_dir="./data/abstracts",
+    output_dir="./data/sft_data",
+    model="gpt-4o-mini",
+    qa_ratio=8,
+    quality_filter=False
+)
+generator.run()
+```
+
+### Vision QA Generator
+
+Generates visual QA pairs from scientific figures in LlamaFactory-compatible format.
+
+**Input:**
+- Figure context JSON (`data/vlm_preprocessing/{paper_id}.json`)
+- Figure images (`*.jpeg`)
+
+**Output:** JSONL files (`data/vlm_sft_data/{paper_id}_vision_qa.jsonl`)
+
+**Prompt Types:**
+- `visual-factual` - 3 questions about visible elements
+- `visual-mechanism` - 2 questions about processes
+- `visual-data-extraction` - 1 question about specific values
+- `visual-analysis` - 3 questions requiring interpretation
+- `visual-comparison` - 2 questions comparing elements
+
+```python
+from src.generators import VisionQAGenerator
+
+generator = VisionQAGenerator(
+    vlm_dir="./data/vlm_preprocessing",
+    abstract_dir="./data/abstracts",
+    output_dir="./data/vlm_sft_data",
+    model="gpt-4o-mini",
+    workers=4,
+    qa_ratio=8
+)
+generator.run()
+```
+
+### Output Formats
+
+**Text QA:**
+```json
+{"question": "...", "answer": "...", "difficulty": "easy", "question_type": "factual", "paper_id": "...", "section": "section_0", "context": "...", "quality_score": 0.0, "metadata": {}}
+```
+
+**Vision QA (LlamaFactory):**
+```json
+{"messages": [{"role": "user", "content": "Question <image>"}, {"role": "assistant", "content": "Answer"}], "images": ["path/to/figure.jpeg"], "metadata": {"paper_id": "...", "figure_id": "...", "question_type": "...", "difficulty": "..."}}
+```
+
+## CLI Usage
+
+```bash
+# Generate text QA
+uv run python -m src.cli.main generate-qa --mode text --qa-ratio 8
+
+# Generate vision QA with 4 workers
+uv run python -m src.cli.main generate-qa --mode vision --workers 4
+
+# Generate both with quality filtering
+uv run python -m src.cli.main generate-qa --mode both --quality-filter
+
+# Run full pipeline including QA
+uv run python -m src.cli.main pipeline --stages qa
+```
+
+## Module 4: Content Parser (📋 Planned)
 
 Parse the markdown content into structured content, including:
 - Abstract
 - Text Chunks
 - Images
 - References
+
 Then store the structured content to the output folder.
-
-### Input:
-- OCR Result Folder Path
-
-### Process:
-- Parse the markdown content
-
-### Output:
-- Parsed Content Status Csv Record
-
-```csv
-paper_name, parsed_content_status, parsed_content_time, parsed_content_result_path, total_pages, total_images, total_references, total_text_chunks, total_images, total_references, total_text_chunks
-paper1, success, 2021-01-01 12:00:00, /path/to/paper1_parsed, 15, 8, 3, 10, 2, 1, 5
-paper2, failed, 2021-01-01 12:00:00, /path/to/paper2_parsed, 0, 0, 0, 0, 0, 0, 0
-...
-```
-
-- Output Folder Structure
-```
-OCR_Result_Folder
-├── paper1
-|   ├── figure1.png
-|   ├── figure2.png
-|   ├── ...
-|   ├── figureN.png
-|   ├── paper1.md (exact same name with this folder)
-|   ├── paper1_abstract.md (abstract content)
-|   ├── paper1_text_chunks.md (text chunks content)
-|   ├── paper1_images.json (images content, including figure name, figure path, legend, caption, related text)
-|   ├── paper1_references.md (references content)
-|   └── paper1_meta.json (ocr metadata for this paper, use to check markdown content)
-├── paper2
-├── ...
-└── paperN
-```
-
-## Module 4: QA Template Manager (📋 Planned)
-
-A group of QA templates are provided by [Ryze-Data](https://github.com/Chivier/Ryze-Data), and the user can add more templates to the template manager.
-
-## Module 5: Data Packer and Dataset Generator (📋 Planned)
-
-### Input:
-- Parsed Content Folder Path
-- QA Template Manager
-
-### Process:
-- Pack the parsed content into a dataset, including:
-    - Abstract
-    - Text Chunks
-    - Images
-    - References
-    - QA Templates
-Then call LLM batch inference to generate QA pairs, and store the QA pairs to the output folder.
-
-### Output:
-- A group of QA pairs with metadata

@@ -17,9 +17,9 @@
     ↓
 OCR 阶段 → Markdown + 图片        ✅ 已实现
     ↓
-处理阶段 → 结构化 JSON            📋 计划中
+文本 QA → JSONL (QA pairs)       ✅ 已实现
     ↓
-生成阶段 → QA 对 (JSONL)          📋 计划中
+视觉 QA → JSONL (LlamaFactory)   ✅ 已实现
 ```
 
 ## 元数据格式
@@ -157,9 +157,7 @@ OCR_Result_Folder/
 └── paperN/
 ```
 
-## 图片提取格式 (📋 计划中)
-
-> 以下格式为计划中的功能，尚未实现。
+## 图片提取格式 (Vision QA Input)
 
 ### 图片数据 ({paper_id}.json)
 
@@ -193,9 +191,7 @@ OCR_Result_Folder/
 ]
 ```
 
-## QA 数据格式 (📋 计划中)
-
-> 以下格式为计划中的功能，尚未实现。
+## QA 数据格式 (✅ 已实现)
 
 ### 文本 QA 格式 ({paper_id}_qa.jsonl)
 
@@ -208,17 +204,13 @@ OCR_Result_Folder/
 {
   "question": "What is the main contribution of this paper?",
   "answer": "The main contribution is a novel neural network architecture for molecular design that achieves state-of-the-art performance.",
-  "paper_id": "nature04244",
-  "section": "abstract",
   "difficulty": "medium",
   "question_type": "factual",
-  "quality_score": 4.5,
+  "paper_id": "nature04244",
+  "section": "section_0",
   "context": "This paper presents a novel approach to deep learning...",
-  "metadata": {
-    "generated_by": "gpt-4",
-    "timestamp": "2024-01-15T10:30:00Z",
-    "prompt_template": "factual.txt"
-  }
+  "quality_score": 0.0,
+  "metadata": {}
 }
 ```
 
@@ -241,29 +233,31 @@ OCR_Result_Folder/
 
 **格式**: JSONL (LlamaFactory 兼容格式)
 
+**说明**:
+- `<image>` 占位符告诉模型图片在对话中的位置
+- 与 LlamaFactory VLM 训练格式完全兼容
+
 **结构**:
 ```jsonl
 {
   "messages": [
     {
       "role": "user",
-      "content": "What does this figure show? <image>"
+      "content": "What does the figure show? <image>"
     },
     {
       "role": "assistant",
-      "content": "This figure shows a convolutional neural network architecture with multiple layers for feature extraction."
+      "content": "This figure shows a bar chart comparing grain width between wild-type and mutant plants."
     }
   ],
   "images": [
-    "/data/ocr_results/nature04244/page_3_Figure_1.jpeg"
+    "data/vlm_preprocessing/sample_paper_Figure_1.jpeg"
   ],
   "metadata": {
-    "paper_id": "nature04244",
-    "figure_id": "fig1",
-    "qa_pairs": 1,
-    "quality_scores": [4.2],
-    "generated_by": "gpt-4-vision",
-    "timestamp": "2024-01-15T10:30:00Z"
+    "paper_id": "sample_paper",
+    "figure_id": "Figure_1",
+    "question_type": "factual",
+    "difficulty": "easy"
   }
 }
 ```
