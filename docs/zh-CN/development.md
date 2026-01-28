@@ -82,35 +82,24 @@ pre-commit run --all-files
 
 ```
 src/
-├── cli/                 # 命令行接口
+├── cli/                     # 命令行接口
 │   ├── __init__.py
-│   ├── main.py         # CLI 入口点
-│   └── data_inspector.py # 数据检查工具
-├── scrapers/           # 网页爬虫模块
+│   ├── main.py             # ✅ CLI 入口点
+│   └── data_inspector.py   # ✅ 数据检查工具
+├── scrapers/               # 网页爬虫模块
 │   ├── __init__.py
-│   ├── base_scraper.py # 抽象基类
-│   └── nature_scraper.py # Nature 实现
-├── downloaders/        # 下载管理器
-│   ├── __init__.py
-│   ├── base_downloader.py
-│   └── pdf_downloader.py
-├── processors/         # 数据处理器
-│   ├── __init__.py
-│   ├── base_processor.py
-│   ├── ocr_processor.py
-│   └── figure_extractor.py
-├── generators/         # 问答生成器
-│   ├── __init__.py
-│   ├── base_generator.py
-│   ├── text_qa_generator.py
-│   └── vision_qa_generator.py
-├── config_manager.py   # 配置管理
-├── pipeline_manager.py # 流水线编排
-└── utils/             # 工具函数
-    ├── __init__.py
-    ├── logging.py
-    └── validation.py
+│   ├── base_scraper.py     # 抽象基类
+│   └── nature_scraper.py   # ✅ Nature 实现
+├── config_manager.py       # ✅ 配置管理
+├── pipeline_manager.py     # ⚠️ 流水线框架（部分实现）
+├── api_key_balancer.py     # ✅ API 密钥负载均衡
+└── chunked-ocr.py          # ✅ 分块 OCR 处理
 ```
+
+**实现状态说明**：
+- ✅ 已完全实现
+- ⚠️ 框架已实现，功能部分完成
+- 📋 计划中的模块（downloaders/, processors/, generators/）尚未实现
 
 ### 设计模式
 
@@ -419,11 +408,11 @@ class TestPipeline:
         config.load("tests/config.test.json")
         pipeline = PipelineManager(config)
         
-        # 运行流水线
-        result = pipeline.run(stages=['scrape', 'download', 'ocr'])
-        
+        # 运行流水线（当前已实现的阶段：scrape, ocr）
+        result = pipeline.run(stages=['scrape', 'ocr'])
+
         # 验证
-        assert result.completed_stages == 3
+        assert result.completed_stages == 2
         assert result.failed_stages == 0
 ```
 

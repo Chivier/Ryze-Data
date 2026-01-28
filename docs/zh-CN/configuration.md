@@ -57,8 +57,8 @@ EOF
 # 3. 验证配置
 python -m src.cli.main config-show
 
-# 4. 测试运行
-python -m src.cli.main pipeline --dry-run
+# 4. 测试运行（运行爬虫）
+python -m src.cli.main scrape --max-pages 1
 ```
 
 ### 常用配置项

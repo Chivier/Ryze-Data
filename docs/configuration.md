@@ -413,11 +413,11 @@ env | grep RYZE_
 不同环境使用不同的配置文件：
 
 ```bash
-# 开发
-python -m src.cli.main --env .env.dev pipeline
+# 开发（运行爬虫）
+python -m src.cli.main --env .env.dev scrape --max-pages 10
 
-# 生产
-python -m src.cli.main --env .env.prod pipeline
+# 生产（运行 OCR）
+python -m src.cli.main --env .env.prod ocr --pdf-dir /data/pdfs
 ```
 
 ### 2. 敏感信息管理

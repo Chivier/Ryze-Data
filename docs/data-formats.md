@@ -5,28 +5,26 @@
 - [数据流概览](#数据流概览)
 - [元数据格式](#元数据格式)
 - [OCR 输出格式](#ocr-输出格式)
-- [图片提取格式](#图片提取格式)
-- [QA 数据格式](#qa-数据格式)
+- [图片提取格式](#图片提取格式-计划中)
+- [QA 数据格式](#qa-数据格式-计划中)
 - [日志格式](#日志格式)
 - [数据验证](#数据验证)
 
 ## 数据流概览
 
 ```
-爬取阶段 → 元数据 (CSV)
+爬取阶段 → 元数据 (CSV)           ✅ 已实现
     ↓
-下载阶段 → PDF 文件
+OCR 阶段 → Markdown + 图片        ✅ 已实现
     ↓
-OCR 阶段 → Markdown + 图片
+处理阶段 → 结构化 JSON            📋 计划中
     ↓
-处理阶段 → 结构化 JSON
-    ↓
-生成阶段 → QA 对 (JSONL)
+生成阶段 → QA 对 (JSONL)          📋 计划中
 ```
 
 ## 元数据格式
 
-### 文章列表 (all_articles.csv)
+### 文章列表 (CSV) ✅ 已实现
 
 **位置**: `{RYZE_NATURE_DATA}/all_articles.csv`
 
@@ -49,35 +47,32 @@ title,url,abstract,open_access,date,author
 "Deep learning for molecular design","https://nature.com/articles/s41586-021-03819-2","This paper presents...","Y","2021-08-12","John Doe, Jane Smith"
 ```
 
-### 下载状态 (download_status.json)
-
-**位置**: `{RYZE_PDF_DIR}/download_status.json`
-
-**格式**: JSON
-
-**结构**:
-```json
-{
-  "total": 1000,
-  "completed": 850,
-  "failed": 10,
-  "skipped": 140,
-  "papers": {
-    "nature04244": {
-      "status": "completed",
-      "url": "https://nature.com/articles/nature04244.pdf",
-      "file_path": "/data/pdfs/nature04244.pdf",
-      "file_size": 2456789,
-      "download_time": "2024-01-15T10:30:00Z",
-      "retry_count": 0
-    }
-  }
-}
-```
-
 ## OCR 输出格式
 
-### 文章 Markdown ({paper_id}.md)
+### OCR 状态记录 (CSV) ✅ 已实现
+
+**位置**: `{RYZE_OCR_OUTPUT}/ocr_status.csv`
+
+**格式**: CSV
+
+**字段说明**:
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| paper_name | string | ✓ | 论文名称 |
+| original_pdf_path | string | ✓ | 原始 PDF 路径 |
+| ocr_status | string | ✓ | OCR 状态 (success/failed) |
+| ocr_time | string | ✓ | OCR 处理时间 |
+| ocr_result_path | string | ✓ | OCR 结果路径 |
+
+**示例**:
+```csv
+paper_name,original_pdf_path,ocr_status,ocr_time,ocr_result_path
+paper1,/path/to/paper1.pdf,success,2024-01-15 12:00:00,/path/to/paper1_ocr
+paper2,/path/to/paper2.pdf,failed,2024-01-15 12:05:00,/path/to/paper2_ocr
+```
+
+### 文章 Markdown ({paper_id}.md) ✅ 已实现
 
 **位置**: `{RYZE_OCR_OUTPUT}/{paper_id}/{paper_id}.md`
 
@@ -114,7 +109,7 @@ title,url,abstract,open_access,date,author
 2. [参考文献2]
 ```
 
-### OCR 元数据 ({paper_id}_meta.json)
+### OCR 元数据 ({paper_id}_meta.json) ✅ 已实现
 
 **位置**: `{RYZE_OCR_OUTPUT}/{paper_id}/{paper_id}_meta.json`
 
@@ -125,14 +120,8 @@ title,url,abstract,open_access,date,author
 {
   "paper_id": "nature04244",
   "title": "Article Title",
-  "authors": ["Author 1", "Author 2"],
-  "journal": "Nature",
-  "year": 2024,
-  "doi": "10.1038/nature04244",
   "pages": {
-    "total": 12,
-    "start": 100,
-    "end": 111
+    "total": 12
   },
   "figures": {
     "count": 5,
@@ -140,32 +129,37 @@ title,url,abstract,open_access,date,author
       {
         "id": "fig1",
         "page": 3,
-        "caption": "Figure 1 caption",
         "file": "page_3_Figure_1.jpeg"
       }
     ]
   },
-  "tables": {
-    "count": 2,
-    "list": []
-  },
-  "sections": [
-    {
-      "title": "Introduction",
-      "start_page": 1,
-      "word_count": 500
-    }
-  ],
   "processing": {
     "ocr_engine": "marker",
     "processing_time": 45.2,
-    "timestamp": "2024-01-15T10:30:00Z",
-    "quality_score": 0.95
+    "timestamp": "2024-01-15T10:30:00Z"
   }
 }
 ```
 
-## 图片提取格式
+### OCR 结果目录结构 ✅ 已实现
+
+```
+OCR_Result_Folder/
+├── paper1/
+│   ├── figure1.png
+│   ├── figure2.png
+│   ├── ...
+│   ├── figureN.png
+│   ├── paper1.md              # Markdown 内容
+│   └── paper1_meta.json       # OCR 元数据
+├── paper2/
+├── ...
+└── paperN/
+```
+
+## 图片提取格式 (📋 计划中)
+
+> 以下格式为计划中的功能，尚未实现。
 
 ### 图片数据 ({paper_id}.json)
 
@@ -186,11 +180,6 @@ title,url,abstract,open_access,date,author
         "position": "before_figure",
         "type": "text",
         "info": "As shown in Figure 1, the architecture..."
-      },
-      {
-        "position": "after_figure",
-        "type": "text",
-        "info": "The results demonstrate that..."
       }
     ],
     "metadata": {
@@ -198,32 +187,15 @@ title,url,abstract,open_access,date,author
       "figure_number": 1,
       "width": 800,
       "height": 600,
-      "format": "jpeg",
-      "size_bytes": 156789
-    },
-    "references_in_text": [
-      {
-        "section": "Results",
-        "text": "Figure 1 shows the overall architecture",
-        "page": 5
-      }
-    ]
+      "format": "jpeg"
+    }
   }
 ]
 ```
 
-### 摘要文件 ({paper_id}_abstract.txt)
+## QA 数据格式 (📋 计划中)
 
-**位置**: `{RYZE_ABSTRACT_DIR}/{paper_id}_abstract.txt`
-
-**格式**: 纯文本
-
-**示例**:
-```text
-This paper presents a novel approach to deep learning for molecular design. We demonstrate that neural networks can effectively learn molecular representations and generate novel compounds with desired properties. Our method achieves state-of-the-art results on benchmark datasets.
-```
-
-## QA 数据格式
+> 以下格式为计划中的功能，尚未实现。
 
 ### 文本 QA 格式 ({paper_id}_qa.jsonl)
 
@@ -280,25 +252,16 @@ This paper presents a novel approach to deep learning for molecular design. We d
     {
       "role": "assistant",
       "content": "This figure shows a convolutional neural network architecture with multiple layers for feature extraction."
-    },
-    {
-      "role": "user",
-      "content": "What is the significance of the highlighted region? <image>"
-    },
-    {
-      "role": "assistant",
-      "content": "The highlighted region indicates the attention mechanism that focuses on relevant molecular structures."
     }
   ],
   "images": [
-    "/data/ocr_results/nature04244/page_3_Figure_1.jpeg",
     "/data/ocr_results/nature04244/page_3_Figure_1.jpeg"
   ],
   "metadata": {
     "paper_id": "nature04244",
     "figure_id": "fig1",
-    "qa_pairs": 2,
-    "quality_scores": [4.2, 4.5],
+    "qa_pairs": 1,
+    "quality_scores": [4.2],
     "generated_by": "gpt-4-vision",
     "timestamp": "2024-01-15T10:30:00Z"
   }
@@ -318,31 +281,6 @@ This paper presents a novel approach to deep learning for molecular design. We d
 
 ## 日志格式
 
-### 处理日志 (processing_log.csv)
-
-**位置**: `{RYZE_LOGS_DIR}/processing_log.csv`
-
-**格式**: CSV
-
-**结构**:
-```csv
-timestamp,paper_id,stage,status,duration,error_message,details
-2024-01-15T10:30:00Z,nature04244,ocr,completed,45.2,,{"pages":12,"figures":5}
-2024-01-15T10:31:00Z,nature04245,ocr,failed,120.0,Timeout error,{"retry_count":3}
-```
-
-### 视觉处理日志 (vision_processing_log.csv)
-
-**位置**: `{RYZE_LOGS_DIR}/vision_processing_log.csv`
-
-**格式**: CSV
-
-**结构**:
-```csv
-timestamp,paper_id,figure_count,qa_generated,avg_quality,model,processing_time
-2024-01-15T10:30:00Z,nature04244,5,40,4.2,gpt-4-vision,120.5
-```
-
 ### 系统日志格式
 
 **JSON 格式**:
@@ -356,8 +294,7 @@ timestamp,paper_id,figure_count,qa_generated,avg_quality,model,processing_time
     "stage": "ocr",
     "paper_id": "nature04244",
     "duration": 45.2
-  },
-  "traceback": null
+  }
 }
 ```
 
@@ -368,58 +305,29 @@ timestamp,paper_id,figure_count,qa_generated,avg_quality,model,processing_time
 
 ## 数据验证
 
-### 模式验证
-
-使用 JSON Schema 验证数据格式：
-
-```python
-import jsonschema
-
-# QA 数据模式
-qa_schema = {
-    "type": "object",
-    "required": ["question", "answer", "paper_id"],
-    "properties": {
-        "question": {"type": "string", "minLength": 10},
-        "answer": {"type": "string", "minLength": 20},
-        "paper_id": {"type": "string", "pattern": "^[a-z]+[0-9]+$"},
-        "quality_score": {"type": "number", "minimum": 0, "maximum": 5}
-    }
-}
-
-# 验证数据
-jsonschema.validate(qa_data, qa_schema)
-```
-
 ### 数据完整性检查
 
 ```python
 def validate_paper_data(paper_id: str) -> dict:
     """验证论文数据完整性"""
     checks = {
-        "pdf_exists": False,
         "ocr_completed": False,
-        "figures_extracted": False,
-        "qa_generated": False,
-        "consistency": True
+        "markdown_exists": False,
+        "meta_exists": False
     }
-    
-    # 检查 PDF 文件
-    pdf_path = Path(f"{PDF_DIR}/{paper_id}.pdf")
-    checks["pdf_exists"] = pdf_path.exists()
-    
+
     # 检查 OCR 输出
-    ocr_path = Path(f"{OCR_DIR}/{paper_id}/{paper_id}.md")
-    checks["ocr_completed"] = ocr_path.exists()
-    
-    # 检查图片提取
-    figures_path = Path(f"{VLM_DIR}/{paper_id}.json")
-    checks["figures_extracted"] = figures_path.exists()
-    
-    # 检查 QA 生成
-    qa_path = Path(f"{SFT_DIR}/{paper_id}_qa.jsonl")
-    checks["qa_generated"] = qa_path.exists()
-    
+    ocr_dir = Path(f"{OCR_DIR}/{paper_id}")
+    checks["ocr_completed"] = ocr_dir.exists()
+
+    # 检查 Markdown 文件
+    md_path = ocr_dir / f"{paper_id}.md"
+    checks["markdown_exists"] = md_path.exists()
+
+    # 检查元数据
+    meta_path = ocr_dir / f"{paper_id}_meta.json"
+    checks["meta_exists"] = meta_path.exists()
+
     return checks
 ```
 
@@ -428,9 +336,7 @@ def validate_paper_data(paper_id: str) -> dict:
 | 指标 | 计算方法 | 阈值 |
 |------|---------|------|
 | OCR 质量 | 文本置信度平均值 | > 0.8 |
-| QA 质量 | 模型评分平均值 | > 2.5 |
 | 完整性 | 有效字段比例 | > 0.9 |
-| 一致性 | 交叉验证通过率 | = 1.0 |
 
 ## 数据转换工具
 
@@ -447,7 +353,7 @@ def csv_to_json(csv_file: str, json_file: str):
         reader = csv.DictReader(f)
         for row in reader:
             data.append(row)
-    
+
     with open(json_file, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 ```
@@ -462,21 +368,4 @@ def merge_jsonl_files(files: list, output_file: str):
             with open(file_path, 'r', encoding='utf-8') as f:
                 for line in f:
                     out.write(line)
-```
-
-### 数据采样
-
-```python
-import random
-
-def sample_qa_data(input_file: str, output_file: str, sample_size: int):
-    """从 QA 数据中随机采样"""
-    with open(input_file, 'r') as f:
-        lines = f.readlines()
-    
-    sampled = random.sample(lines, min(sample_size, len(lines)))
-    
-    with open(output_file, 'w') as f:
-        for line in sampled:
-            f.write(line)
 ```

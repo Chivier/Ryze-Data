@@ -2,7 +2,6 @@
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Documentation](https://img.shields.io/badge/docs-latest-green.svg)](../zh-CN/)
 
 一个综合性的科学文献数据处理流水线框架，提供从网络爬取到训练数据生成的端到端工作流。
 
@@ -15,10 +14,9 @@ Ryze-Data 是一个企业级的模块化框架，专门设计用于自动化科�
 ### 核心特性
 
 - **📚 智能网页爬取**：自动收集来自 Nature 等来源的科学文章
-- **📄 高级 PDF 处理**：具有容错和重试机制的并行下载
 - **🔍 先进的 OCR 技术**：使用 marker 引擎进行高精度文本和图像提取
-- **🖼️ 上下文感知的图像分析**：智能提取图像及其周围上下文
-- **🤖 多模态问答生成**：自动生成文本和视觉问答对
+- **⚖️ LLM 自动负载均衡**：支持多 API 密钥的智能负载均衡和自动重试
+- **📊 分块 OCR 处理**：支持大规模 PDF 批量处理
 - **🔧 灵活配置**：支持热重载的基于环境的配置
 - **📊 实时监控**：内置指标和日志记录，实现流水线可观测性
 - **🚀 生产就绪**：支持分布式处理和检查点恢复
@@ -55,15 +53,17 @@ nano .env
 ### 基本用法
 
 ```bash
-# 运行完整流水线
-python -m src.cli.main pipeline
+# 爬取文章元数据
+python -m src.cli.main scrape
 
-# 或者运行单个阶段
-python -m src.cli.main scrape      # 爬取文章元数据
-python -m src.cli.main download    # 下载 PDF 文件
-python -m src.cli.main ocr         # 提取文本和图像
-python -m src.cli.main extract     # 提取带上下文的图像
-python -m src.cli.main generate-qa # 生成问答对
+# 运行 OCR 处理
+python -m src.cli.main ocr
+
+# 查看流水线状态
+python -m src.cli.main inspect all
+
+# 检查配置
+python -m src.cli.main config-show
 ```
 
 ### 数据检查
@@ -89,14 +89,11 @@ Ryze-Data/
 ├── src/                    # 源代码
 │   ├── cli/               # 命令行接口
 │   ├── scrapers/          # 网页爬取模块
-│   ├── downloaders/       # PDF 下载管理器
-│   ├── processors/        # 数据处理引擎
-│   ├── generators/        # 问答生成模块
 │   ├── config_manager.py  # 配置管理
-│   └── pipeline_manager.py # 流水线编排
+│   ├── pipeline_manager.py # 流水线编排
+│   ├── api_key_balancer.py # LLM API 负载均衡器
+│   └── chunked-ocr.py     # 分块 OCR 处理
 ├── prompts/               # LLM 提示词模板
-│   ├── text/             # 文本问答提示词
-│   └── vision/           # 视觉问答提示词
 ├── tests/                 # 测试套件
 │   ├── unit/             # 单元测试
 │   └── integration/      # 集成测试
@@ -105,7 +102,6 @@ Ryze-Data/
 │   ├── configuration.md  # 配置指南
 │   ├── api-reference.md  # API 文档
 │   └── zh-CN/           # 中文文档
-├── scripts/              # 实用脚本
 ├── data-sample/          # 测试用样本数据
 ├── .env.example          # 环境变量模板
 ├── config.example.json   # 配置文件模板
@@ -141,13 +137,11 @@ RYZE_GPU_ENABLED=true           # 启用 GPU 加速
 ```
 网页源 → 爬取 → 元数据
          ↓
-      下载 → PDF文件
-         ↓
       OCR → 文本+图像
          ↓
-      处理 → 结构化数据
+      （计划中）处理 → 结构化数据
          ↓
-      生成 → 问答数据集
+      （计划中）生成 → 问答数据集
 ```
 
 每个阶段具有以下特点：
@@ -183,16 +177,12 @@ python -m pytest tests/integration/
 ### 核心文档
 - [架构设计](architecture.md) - 系统架构和设计决策
 - [配置指南](configuration.md) - 详细配置选项
-- [API 参考](api-reference.md) - 完整的 API 文档
-- [数据格式](data-formats.md) - 数据结构规范
 - [开发指南](development.md) - 贡献和扩展指南
-- [故障排查](troubleshooting.md) - 常见问题和解决方案
 
-### 使用指南
-- [快速开始](quickstart.md) - 5分钟上手教程
-- [高级用法](advanced-usage.md) - 高级功能和技巧
-- [性能优化](performance.md) - 性能调优指南
-- [部署指南](deployment.md) - 生产环境部署
+### 英文文档
+- [API 参考](../api-reference.md) - 完整的 API 文档
+- [数据格式](../data-formats.md) - 数据结构规范
+- [故障排查](../troubleshooting.md) - 常见问题和解决方案
 
 ## 🤝 贡献指南
 
@@ -222,9 +212,7 @@ pylint src/
 | 阶段 | 文档/小时 | GPU 加速 |
 |------|----------|----------|
 | 爬取 | 1000+ | 不适用 |
-| 下载 | 200-500 | 不适用 |
 | OCR | 50-100 | 2-3倍 |
-| 问答生成 | 100-200 | 不适用 |
 
 ### 性能优化建议
 
@@ -274,8 +262,7 @@ pylint src/
 
 如有问题、建议或贡献：
 - 提交 [Issue](https://github.com/your-username/ryze-data/issues)
-- 查看[故障排查指南](troubleshooting.md)
-- 查阅[常见问题](faq.md)
+- 查看[故障排查指南](../troubleshooting.md)
 
 ## 🔗 相关链接
 

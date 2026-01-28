@@ -5,9 +5,8 @@
 - [ConfigManager](#configmanager)
 - [PipelineManager](#pipelinemanager)
 - [DataInspector](#datainspector)
+- [OpenAIAPIBalancer](#openaiapibalancer)
 - [Scrapers](#scrapers)
-- [Processors](#processors)
-- [Generators](#generators)
 - [CLI Commands](#cli-commands)
 
 ## ConfigManager
@@ -118,6 +117,8 @@ class ProcessingConfig:
 
 流水线管理器，协调各处理阶段的执行。
 
+> **注意**：目前 PipelineManager 提供了基础框架，实际实现的阶段仅包括 `scrape` 和 `ocr`。
+
 ### 类定义
 
 ```python
@@ -165,13 +166,10 @@ pipeline.add_stage(
 **示例**：
 ```python
 # 运行特定阶段
-result = pipeline.run(stages=["scrape", "download"])
+result = pipeline.run(stages=["scrape", "ocr"])
 
 # 运行全部阶段，跳过已完成的
 result = pipeline.run(skip_existing=True)
-
-# 强制运行，忽略错误
-result = pipeline.run(force=True)
 ```
 
 #### `get_status() -> Dict[str, Any]`
@@ -274,7 +272,7 @@ print(sample['content'])
 
 **示例**：
 ```python
-samples = inspector.get_random_sample("qa-text", count=5)
+samples = inspector.get_random_sample("ocr", count=5)
 for sample in samples:
     print(sample['file'])
 ```
@@ -284,12 +282,240 @@ for sample in samples:
 | 阶段名称 | 描述 | 文件模式 |
 |---------|------|----------|
 | scraping | 爬取的元数据 | *.csv |
-| pdf | 下载的 PDF | *.pdf |
 | ocr | OCR 结果 | */*.md |
-| figures | 提取的图片 | *.json |
-| abstracts | 摘要 | *.txt |
-| qa-text | 文本 QA | *_qa.jsonl |
-| qa-vision | 视觉 QA | *_vision_qa.jsonl |
+
+## OpenAIAPIBalancer
+
+OpenAI API 密钥负载均衡器，支持多 API 密钥并发请求和自动重试。
+
+### 类定义
+
+```python
+from src.api_key_balancer import OpenAIAPIBalancer
+
+balancer = OpenAIAPIBalancer(api_keys=["sk-key1", "sk-key2", "sk-key3"])
+```
+
+### 构造函数
+
+#### `__init__(api_keys: List[str], max_queue_size: int = 1000)`
+
+初始化负载均衡器。
+
+**参数**：
+- `api_keys`: API 密钥列表
+- `max_queue_size`: 最大队列大小
+
+**示例**：
+```python
+import os
+
+api_keys = [
+    os.environ.get("OPENAI_API_KEY_1"),
+    os.environ.get("OPENAI_API_KEY_2"),
+]
+balancer = OpenAIAPIBalancer(api_keys)
+```
+
+### 方法
+
+#### `submit_request(method: str, params: Dict[str, Any], callback: Optional[Callable], max_retries: int = 3) -> str`
+
+提交请求到负载均衡器。
+
+**参数**：
+- `method`: API 方法名（如 "chat.completions.create"）
+- `params`: API 参数
+- `callback`: 可选的回调函数
+- `max_retries`: 最大重试次数
+
+**返回**：
+- 请求 ID
+
+**支持的方法**：
+- `chat.completions.create`
+- `completions.create`
+- `embeddings.create`
+- `images.generate`
+- `audio.transcriptions.create`
+- `audio.translations.create`
+
+#### `submit_chat_completion(model: str, messages: List[Dict[str, str]], callback: Optional[Callable] = None, **kwargs) -> str`
+
+提交聊天完成请求（便捷方法）。
+
+**参数**：
+- `model`: 模型名称
+- `messages`: 消息列表
+- `callback`: 可选的回调函数
+- `**kwargs`: 其他 OpenAI API 参数
+
+**返回**：
+- 请求 ID
+
+**示例**：
+```python
+request_id = balancer.submit_chat_completion(
+    model="gpt-4",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Hello!"}
+    ],
+    temperature=0.7
+)
+```
+
+#### `submit_embedding(input: str, model: str = "text-embedding-ada-002", **kwargs) -> str`
+
+提交嵌入请求。
+
+**参数**：
+- `input`: 输入文本
+- `model`: 模型名称
+- `**kwargs`: 其他参数
+
+**返回**：
+- 请求 ID
+
+**示例**：
+```python
+request_id = balancer.submit_embedding(
+    input="Hello, world!",
+    model="text-embedding-ada-002"
+)
+```
+
+#### `get_result(timeout: Optional[float] = None) -> Optional[APIRequest]`
+
+获取处理结果。
+
+**参数**：
+- `timeout`: 超时时间（秒）
+
+**返回**：
+- 处理完成的请求对象，超时返回 None
+
+#### `get_result_by_id(request_id: str, timeout: Optional[float] = None) -> Optional[APIRequest]`
+
+获取特定 ID 的处理结果。
+
+**参数**：
+- `request_id`: 请求 ID
+- `timeout`: 超时时间（秒，默认 60）
+
+**返回**：
+- 处理完成的请求对象，未找到返回 None
+
+#### `wait_for_result(request_id: str, timeout: float = 60) -> APIRequest`
+
+等待特定请求的结果。
+
+**参数**：
+- `request_id`: 请求 ID
+- `timeout`: 超时时间
+
+**返回**：
+- 处理完成的请求对象
+
+**异常**：
+- `TimeoutError`: 如果超时
+
+**示例**：
+```python
+request_id = balancer.submit_chat_completion(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+
+try:
+    result = balancer.wait_for_result(request_id, timeout=30)
+    if result.status == RequestStatus.SUCCESS:
+        print(result.result.choices[0].message.content)
+except TimeoutError:
+    print("请求超时")
+```
+
+#### `get_all_results() -> List[APIRequest]`
+
+获取所有当前可用的结果。
+
+**返回**：
+- 结果列表
+
+#### `get_statistics() -> Dict[str, Any]`
+
+获取统计信息。
+
+**返回**：
+- 统计信息字典
+
+**示例**：
+```python
+stats = balancer.get_statistics()
+print(f"总请求数: {stats['total_requests']}")
+print(f"待处理: {stats['pending_requests']}")
+print(f"重试中: {stats['retry_requests']}")
+
+for worker in stats['workers']:
+    print(f"Worker {worker['thread_id']}: "
+          f"processed={worker['processed']}, "
+          f"failed={worker['failed']}")
+```
+
+#### `shutdown(wait: bool = True)`
+
+关闭负载均衡器。
+
+**参数**：
+- `wait`: 是否等待所有请求处理完成
+
+**示例**：
+```python
+# 优雅关闭，等待所有请求完成
+balancer.shutdown(wait=True)
+
+# 立即关闭
+balancer.shutdown(wait=False)
+```
+
+### APIRequest 结构
+
+```python
+@dataclass
+class APIRequest:
+    id: str                              # 请求 ID
+    method: str                          # API 方法
+    params: Dict[str, Any]               # 请求参数
+    callback: Optional[Callable] = None  # 回调函数
+    retry_count: int = 0                 # 当前重试次数
+    max_retries: int = 3                 # 最大重试次数
+    result: Any = None                   # 成功时的结果
+    error: Any = None                    # 失败时的错误
+    status: RequestStatus = RequestStatus.PENDING  # 请求状态
+
+class RequestStatus(Enum):
+    PENDING = "pending"       # 等待处理
+    PROCESSING = "processing" # 处理中
+    SUCCESS = "success"       # 成功
+    FAILED = "failed"         # 失败
+    RETRYING = "retrying"     # 重试中
+```
+
+### 使用回调函数
+
+```python
+def on_complete(result, error=None):
+    if error:
+        print(f"请求失败: {error}")
+    else:
+        print(f"响应: {result.choices[0].message.content}")
+
+balancer.submit_chat_completion(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello"}],
+    callback=on_complete
+)
+```
 
 ## Scrapers
 
@@ -325,123 +551,6 @@ CSV 文件，包含以下字段：
 - `date`: 发布日期
 - `author`: 作者列表
 
-## Processors
-
-### FigureExtractor
-
-图片提取器。
-
-```python
-from src.processors.figure_extractor import FigureExtractor
-
-extractor = FigureExtractor(
-    input_dir="./ocr_results",
-    output_dir="./figures",
-    threads=8
-)
-```
-
-#### 方法
-
-##### `run() -> None`
-
-运行图片提取。
-
-**示例**：
-```python
-extractor = FigureExtractor(
-    input_dir=config.paths.ocr_output,
-    output_dir=config.paths.figures_dir,
-    threads=4
-)
-extractor.run()
-```
-
-#### 输出格式
-
-JSON 文件，结构如下：
-```json
-[{
-    "figure_path": "/path/to/figure.jpg",
-    "related_info": [{
-        "position": "before_figure",
-        "info": "图片相关文本"
-    }]
-}]
-```
-
-## Generators
-
-### TextQAGenerator
-
-文本 QA 生成器。
-
-```python
-from src.generators.text_qa_generator import TextQAGenerator
-
-generator = TextQAGenerator(
-    ocr_dir="./ocr_results",
-    abstract_dir="./abstracts",
-    output_dir="./sft_data",
-    model="gpt-4",
-    qa_ratio=8
-)
-```
-
-#### 方法
-
-##### `run() -> None`
-
-生成文本 QA 对。
-
-**示例**：
-```python
-generator = TextQAGenerator(
-    ocr_dir=config.paths.ocr_output,
-    abstract_dir=config.paths.abstract_dir,
-    output_dir=config.paths.sft_data,
-    model="gpt-4",
-    qa_ratio=10
-)
-generator.run()
-```
-
-### VisionQAGenerator
-
-视觉 QA 生成器。
-
-```python
-from src.generators.vision_qa_generator import VisionQAGenerator
-
-generator = VisionQAGenerator(
-    vlm_dir="./vlm_preprocessing",
-    abstract_dir="./abstracts", 
-    output_dir="./vlm_sft_data",
-    model="gpt-4-vision",
-    workers=4,
-    qa_ratio=8
-)
-```
-
-#### 方法
-
-##### `run() -> None`
-
-生成视觉 QA 对。
-
-**示例**：
-```python
-generator = VisionQAGenerator(
-    vlm_dir=config.paths.vlm_preprocessing,
-    abstract_dir=config.paths.abstract_dir,
-    output_dir=config.paths.vlm_sft_data,
-    model="gpt-4-vision",
-    workers=8,
-    qa_ratio=5
-)
-generator.run()
-```
-
 ## CLI Commands
 
 ### 主命令
@@ -454,27 +563,15 @@ python -m src.cli.main [OPTIONS] COMMAND [ARGS]
 - `--config, -c`: 配置文件路径
 - `--env, -e`: 环境文件路径
 
-### 子命令
+### 已实现的子命令
 
 #### `scrape`
 
-爬取 Nature 文章。
+爬取 Nature 文章元数据。
 
 ```bash
 python -m src.cli.main scrape
 ```
-
-#### `download`
-
-下载 PDF 文件。
-
-```bash
-python -m src.cli.main download [OPTIONS]
-```
-
-**选项**：
-- `--workers, -w`: 并行工作线程数
-- `--servers`: 下载服务器列表
 
 #### `ocr`
 
@@ -488,43 +585,6 @@ python -m src.cli.main ocr [OPTIONS]
 - `--input-dir`: 输入目录
 - `--output-dir`: 输出目录
 - `--batch-size`: 批处理大小
-
-#### `extract`
-
-提取图片和文本。
-
-```bash
-python -m src.cli.main extract [OPTIONS]
-```
-
-**选项**：
-- `--threads, -t`: 处理线程数
-
-#### `generate-qa`
-
-生成 QA 对。
-
-```bash
-python -m src.cli.main generate-qa [OPTIONS]
-```
-
-**选项**：
-- `--mode`: 生成模式 (text/vision/both)
-- `--model`: 使用的模型
-- `--workers, -w`: 并行工作线程数
-- `--qa-ratio`: 每个单元的 QA 对数量
-
-#### `pipeline`
-
-运行完整流水线。
-
-```bash
-python -m src.cli.main pipeline [OPTIONS]
-```
-
-**选项**：
-- `--stages, -s`: 要运行的阶段
-- `--workers, -w`: 并行工作线程数
 
 #### `inspect`
 
@@ -637,12 +697,12 @@ class BaseProcessor(ABC):
     def process(self, input_data: Any) -> Any:
         """处理输入数据"""
         pass
-    
+
     @abstractmethod
     def validate_input(self, input_data: Any) -> bool:
         """验证输入"""
         pass
-    
+
     @abstractmethod
     def validate_output(self, output_data: Any) -> bool:
         """验证输出"""
@@ -659,31 +719,9 @@ class BaseScraper(ABC):
     def scrape(self) -> List[Dict[str, Any]]:
         """爬取数据"""
         pass
-    
+
     @abstractmethod
     def parse(self, html: str) -> Dict[str, Any]:
         """解析 HTML"""
-        pass
-```
-
-### 插件接口
-
-```python
-from abc import ABC, abstractmethod
-
-class Plugin(ABC):
-    @abstractmethod
-    def initialize(self, config: ConfigManager) -> None:
-        """初始化插件"""
-        pass
-    
-    @abstractmethod
-    def process(self, data: Any) -> Any:
-        """处理数据"""
-        pass
-    
-    @abstractmethod
-    def cleanup(self) -> None:
-        """清理资源"""
         pass
 ```

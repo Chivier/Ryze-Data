@@ -4,9 +4,10 @@
 
 - [常见问题](#常见问题)
 - [错误信息解析](#错误信息解析)
+- [OCR 处理问题](#ocr-处理问题)
+- [爬虫问题](#爬虫问题)
+- [API 负载均衡问题](#api-负载均衡问题)
 - [性能问题](#性能问题)
-- [数据问题](#数据问题)
-- [API 相关问题](#api-相关问题)
 - [环境问题](#环境问题)
 - [调试技巧](#调试技巧)
 - [日志分析](#日志分析)
@@ -62,7 +63,7 @@ Warning: Config file config.json not found. Using default values.
 cp config.example.json config.json
 
 # 指定配置文件路径
-python -m src.cli.main --config ./config.json pipeline
+python -m src.cli.main --config ./config.json ocr
 
 # 验证配置
 python -m src.cli.main config-show
@@ -100,14 +101,13 @@ Error: PDF file is corrupted or cannot be read
 
 **解决方案**:
 ```bash
-# 重新下载 PDF
-python -m src.cli.main download --force
-
 # 验证 PDF 文件
-file /data/pdfs/nature04244.pdf
+file /data/pdfs/paper.pdf
 
 # 使用 qpdf 修复
-qpdf --check /data/pdfs/nature04244.pdf
+qpdf --check /data/pdfs/paper.pdf
+
+# 重新获取 PDF
 ```
 
 #### 错误: OCR 超时
@@ -129,9 +129,64 @@ export RYZE_BATCH_SIZE=1
 export RYZE_GPU_ENABLED=false
 ```
 
-### 爬虫错误
+## OCR 处理问题
 
-#### 错误: 连接被拒绝
+### OCR 输出质量差
+
+#### 症状
+- 文本识别不准确
+- 图片无法正确提取
+- 表格格式丢失
+
+#### 解决方案
+
+1. **检查 PDF 质量**
+```bash
+# 检查 PDF 是否为扫描件
+pdfinfo paper.pdf
+```
+
+2. **调整 OCR 参数**
+```python
+# 在配置文件中调整
+{
+    "ocr": {
+        "confidence_threshold": 0.9,
+        "preserve_layout": true
+    }
+}
+```
+
+3. **使用 GPU 加速**
+```bash
+export RYZE_GPU_ENABLED=true
+export CUDA_VISIBLE_DEVICES=0
+```
+
+### 分块 OCR 处理失败
+
+#### 症状
+```
+Error: Chunked OCR failed for batch 3
+```
+
+#### 解决方案
+```bash
+# 检查失败的文件
+cat /data/ocr_results/failed_files.log
+
+# 重新处理失败的文件
+python -m src.chunked_ocr --retry-failed
+
+# 减少并行度
+python -m src.chunked_ocr --workers 2
+```
+
+## 爬虫问题
+
+### 连接被拒绝
+
+#### 症状
 ```
 ConnectionError: HTTPSConnectionPool(host='nature.com', port=443): Max retries exceeded
 ```
@@ -139,27 +194,44 @@ ConnectionError: HTTPSConnectionPool(host='nature.com', port=443): Max retries e
 **原因**: 网络问题或被目标网站限制
 
 **解决方案**:
-```python
-# 增加重试次数和延迟
-config.processing.max_retries = 5
-config.processing.retry_delay_seconds = 10
-
+```bash
 # 使用代理
 export HTTP_PROXY=http://proxy.example.com:8080
 export HTTPS_PROXY=http://proxy.example.com:8080
 
-# 降低请求频率
-time.sleep(5)  # 在请求之间添加延迟
+# 增加重试次数和延迟
+# 在配置文件中设置
+{
+    "processing": {
+        "max_retries": 5,
+        "retry_delay_seconds": 10
+    }
+}
 ```
 
-### API 错误
+### 爬取数据不完整
 
-#### 错误: API 密钥无效
+#### 症状
+- CSV 文件缺少字段
+- 部分文章未被爬取
+
+#### 解决方案
+```bash
+# 检查爬取状态
+python -m src.cli.main inspect stage scraping --detailed
+
+# 重新爬取
+python -m src.cli.main scrape --force
+```
+
+## API 负载均衡问题
+
+### API 密钥无效
+
+#### 症状
 ```
 openai.AuthenticationError: Invalid API key
 ```
-
-**原因**: API 密钥错误或过期
 
 **解决方案**:
 ```bash
@@ -173,12 +245,12 @@ export OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxx
 python -c "import openai; client = openai.OpenAI(); print(client.models.list())"
 ```
 
-#### 错误: 速率限制
+### 速率限制
+
+#### 症状
 ```
 RateLimitError: You exceeded your current quota
 ```
-
-**原因**: API 调用超过限制
 
 **解决方案**:
 ```bash
@@ -187,9 +259,29 @@ export RYZE_NUM_WORKERS=1
 
 # 增加请求间隔
 export RYZE_API_DELAY=2
+```
 
-# 使用更小的批次
-export RYZE_BATCH_SIZE=5
+### 负载均衡器请求失败
+
+#### 症状
+```
+All API keys exhausted after retries
+```
+
+**解决方案**:
+```python
+# 检查统计信息
+from src.api_key_balancer import OpenAIAPIBalancer
+
+balancer = OpenAIAPIBalancer(api_keys)
+stats = balancer.get_statistics()
+print(stats)
+
+# 查看哪些 key 失败
+for worker in stats['workers']:
+    print(f"Worker {worker['thread_id']}: "
+          f"processed={worker['processed']}, "
+          f"failed={worker['failed']}")
 ```
 
 ## 性能问题
@@ -226,13 +318,6 @@ export RYZE_GPU_MEMORY_LIMIT=0.8
 export RYZE_DATA_ROOT=/ssd/ryze_data
 ```
 
-4. **优化内存使用**
-```python
-# 增加 Python 内存限制
-import resource
-resource.setrlimit(resource.RLIMIT_AS, (16 * 1024 * 1024 * 1024, -1))
-```
-
 ### 内存不足
 
 #### 症状
@@ -257,141 +342,6 @@ import torch
 torch.cuda.empty_cache()
 ```
 
-3. **使用分块处理**
-```python
-# 处理大文件时分块
-chunk_size = 1000
-for i in range(0, len(data), chunk_size):
-    chunk = data[i:i+chunk_size]
-    process(chunk)
-```
-
-## 数据问题
-
-### 数据不完整
-
-#### 检查数据完整性
-```bash
-# 检查各阶段数据
-python -m src.cli.main inspect all
-
-# 查看特定阶段
-python -m src.cli.main inspect stage ocr --detailed
-
-# 验证单个文件
-python -m src.cli.main inspect file /data/ocr_results/nature04244/nature04244.md
-```
-
-#### 修复缺失数据
-```bash
-# 重新运行特定阶段
-python -m src.cli.main pipeline --stages ocr extract --force
-
-# 处理特定论文
-export RYZE_PAPER_ID=nature04244
-python -m src.cli.main generate-qa
-```
-
-### 数据格式错误
-
-#### 症状
-```
-json.JSONDecodeError: Expecting value: line 1 column 1
-```
-
-#### 诊断和修复
-```python
-# 验证 JSON 格式
-import json
-
-def validate_json(file_path):
-    try:
-        with open(file_path, 'r') as f:
-            json.load(f)
-        return True
-    except json.JSONDecodeError as e:
-        print(f"Invalid JSON: {e}")
-        return False
-
-# 修复 JSONL 文件
-def fix_jsonl(input_file, output_file):
-    valid_lines = []
-    with open(input_file, 'r') as f:
-        for i, line in enumerate(f):
-            try:
-                json.loads(line.strip())
-                valid_lines.append(line)
-            except:
-                print(f"Skip invalid line {i+1}")
-    
-    with open(output_file, 'w') as f:
-        for line in valid_lines:
-            f.write(line)
-```
-
-## API 相关问题
-
-### OpenAI API 问题
-
-#### 使用自定义端点
-```bash
-# Azure OpenAI
-export OPENAI_BASE_URL=https://your-resource.openai.azure.com/
-export OPENAI_API_VERSION=2023-05-15
-
-# 本地 LLM
-export OPENAI_BASE_URL=http://localhost:11434/v1
-export RYZE_LLM_MODEL=llama2:70b
-```
-
-#### API 响应错误处理
-```python
-import openai
-from tenacity import retry, stop_after_attempt, wait_exponential
-
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(min=1, max=10)
-)
-def call_openai_api(prompt):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
-    except openai.RateLimitError:
-        time.sleep(60)  # 等待 1 分钟
-        raise
-    except openai.APIError as e:
-        logger.error(f"API error: {e}")
-        raise
-```
-
-### 网络问题
-
-#### 使用代理
-```bash
-# HTTP 代理
-export HTTP_PROXY=http://127.0.0.1:7890
-export HTTPS_PROXY=http://127.0.0.1:7890
-
-# SOCKS5 代理
-export ALL_PROXY=socks5://127.0.0.1:1080
-
-# 不使用代理的地址
-export NO_PROXY=localhost,127.0.0.1
-```
-
-#### DNS 问题
-```bash
-# 更换 DNS
-echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
-
-# 清除 DNS 缓存
-sudo systemd-resolve --flush-caches
-```
-
 ## 环境问题
 
 ### Python 版本不兼容
@@ -414,9 +364,7 @@ conda activate ryze
 ```bash
 # 创建虚拟环境
 python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# 或
-venv\Scripts\activate  # Windows
+source venv/bin/activate
 
 # 重新安装依赖
 pip install --upgrade pip
@@ -486,20 +434,6 @@ stats.sort_stats('cumulative')
 stats.print_stats(10)
 ```
 
-### 内存分析
-
-```python
-# 使用 memory_profiler
-from memory_profiler import profile
-
-@profile
-def memory_intensive_function():
-    # 你的代码
-    pass
-
-# 运行: python -m memory_profiler your_script.py
-```
-
 ## 日志分析
 
 ### 查找错误
@@ -515,15 +449,6 @@ grep "nature04244.*ERROR" logs/pipeline.log
 grep ERROR logs/pipeline.log | cut -d'-' -f4 | sort | uniq -c
 ```
 
-### 分析处理时间
-
-```bash
-# 提取处理时间
-grep "Processing completed" logs/pipeline.log | \
-  awk '{print $NF}' | \
-  awk '{sum+=$1; count++} END {print "Average:", sum/count}'
-```
-
 ### 监控实时日志
 
 ```bash
@@ -532,54 +457,6 @@ tail -f logs/pipeline.log
 
 # 只看错误
 tail -f logs/pipeline.log | grep --line-buffered ERROR
-
-# 彩色输出
-tail -f logs/pipeline.log | ccze -A
-```
-
-## 恢复和回滚
-
-### 从检查点恢复
-
-```bash
-# 保存流水线状态
-python -c "
-from src.pipeline_manager import PipelineManager
-from src.config_manager import config
-config.load()
-pipeline = PipelineManager(config)
-pipeline.save_state('pipeline_checkpoint.json')
-"
-
-# 从检查点恢复
-python -m src.cli.main pipeline --resume-from pipeline_checkpoint.json
-```
-
-### 数据备份
-
-```bash
-# 备份重要数据
-tar -czf backup_$(date +%Y%m%d).tar.gz \
-  data/sft_data \
-  data/vlm_sft_data \
-  logs/
-
-# 恢复数据
-tar -xzf backup_20240115.tar.gz
-```
-
-### 清理和重置
-
-```bash
-# 清理临时文件
-find ./temp -type f -mtime +7 -delete
-
-# 清理失败的处理
-rm -rf data/ocr_results/*/failed_*
-
-# 重置特定阶段
-rm -rf data/sft_data/*
-python -m src.cli.main generate-qa --force
 ```
 
 ## 获取帮助
@@ -591,8 +468,8 @@ python -m src.cli.main generate-qa --force
 python -m src.cli.main --help
 
 # 子命令帮助
-python -m src.cli.main pipeline --help
 python -m src.cli.main inspect --help
+python -m src.cli.main ocr --help
 ```
 
 ### 提交问题

@@ -4,6 +4,7 @@
 
 - [系统概述](#系统概述)
 - [架构原则](#架构原则)
+- [项目结构](#项目结构)
 - [系统架构](#系统架构)
 - [核心模块](#核心模块)
 - [数据流设计](#数据流设计)
@@ -26,10 +27,9 @@ Ryze-Data 是一个模块化、可扩展的科学文献处理框架，采用流�
 
 ### 1. 单一职责原则
 每个模块负责一个明确的功能：
-- Scraper：数据爬取
-- Downloader：文件下载
-- Processor：内容处理
-- Generator：数据生成
+- **Scraper**：数据爬取
+- **OCR Processor**：文档 OCR 处理
+- **API Balancer**：LLM API 负载均衡
 
 ### 2. 依赖倒置原则
 - 核心业务逻辑不依赖具体实现
@@ -40,95 +40,83 @@ Ryze-Data 是一个模块化、可扩展的科学文献处理框架，采用流�
 - 对扩展开放：易于添加新的处理器
 - 对修改关闭：核心流程稳定不变
 
-## Project Structure / 项目结构
+## 项目结构
 
 ```
 Ryze-Data/
-├── .env.example                 # Environment variables template
-├── .env.test                    # Test environment configuration
-├── config.example.json          # Configuration template with env var support
-├── config.test.json             # Test configuration
-├── requirements.txt             # Python dependencies
-├── pytest.ini                   # Pytest configuration
-├── run_tests.py                 # Test runner script
-├── README.md                    # Project documentation
-├── LICENSE                      # AGPL-3.0 license
+├── .env.example                 # 环境变量模板
+├── .env.test                    # 测试环境配置
+├── config.example.json          # 配置模板（支持环境变量）
+├── config.test.json             # 测试配置
+├── requirements.txt             # Python 依赖
+├── pytest.ini                   # Pytest 配置
+├── run_tests.py                 # 测试运行脚本
+├── README.md                    # 项目文档
+├── LICENSE                      # AGPL-3.0 许可证
 │
-├── src/                         # Source code directory
+├── src/                         # 源代码目录
 │   ├── __init__.py
-│   ├── config_manager.py        # Configuration management with env expansion
-│   ├── pipeline_manager.py      # Pipeline orchestration and execution
+│   ├── config_manager.py        # 配置管理（支持环境变量）
+│   ├── pipeline_manager.py      # 流水线编排和执行
+│   ├── api_key_balancer.py      # LLM API 负载均衡器
+│   ├── chunked-ocr.py           # 分块 OCR 处理
 │   │
-│   ├── cli/                     # Command-line interface
+│   ├── cli/                     # 命令行界面
 │   │   ├── __init__.py
-│   │   ├── main.py             # Main CLI entry point
-│   │   └── data_inspector.py   # Data inspection and sampling tool
+│   │   ├── main.py              # CLI 主入口
+│   │   └── data_inspector.py    # 数据检查和采样工具
 │   │
-│   ├── scrapers/               # Data source scrapers
-│   │   ├── __init__.py
-│   │   ├── base.py            # Base scraper interface
-│   │   └── nature.py          # Nature articles scraper
-│   │
-│   ├── downloaders/            # File download utilities
-│   │   ├── __init__.py
-│   │   └── pdf_downloader.py  # PDF and supplement downloader
-│   │
-│   ├── processors/             # Data processing modules
-│   │   ├── __init__.py
-│   │   ├── ocr_processor.py   # OCR processing with marker
-│   │   └── figure_extractor.py # Figure and image extraction
-│   │
-│   └── generators/             # Data generation modules
+│   └── scrapers/                # 数据源爬虫
 │       ├── __init__.py
-│       ├── text_qa.py         # Text-based QA generation
-│       └── vision_qa.py       # Vision-based QA generation
+│       ├── base.py              # 基础爬虫接口
+│       └── nature_scraper.py    # Nature 文章爬虫
 │
-├── tests/                      # Test suite
+├── tests/                       # 测试套件
 │   ├── __init__.py
-│   ├── conftest.py            # Test fixtures and configuration
-│   ├── README.md              # Test documentation
+│   ├── conftest.py              # 测试夹具和配置
+│   ├── README.md                # 测试文档
 │   │
-│   ├── unit/                  # Unit tests
+│   ├── unit/                    # 单元测试
 │   │   ├── __init__.py
 │   │   ├── test_config_manager.py
 │   │   └── test_data_inspector.py
 │   │
-│   ├── integration/           # Integration tests
+│   ├── integration/             # 集成测试
 │   │   ├── __init__.py
 │   │   └── test_pipeline.py
 │   │
-│   └── fixtures/              # Test data
+│   └── fixtures/                # 测试数据
 │       ├── sample.pdf
 │       ├── sample_metadata.csv
 │       └── mock_responses.json
 │
-├── docs/                      # Documentation
-│   ├── architecture.md        # Architecture design document
-│   ├── api-reference.md       # API documentation
-│   ├── configuration.md       # Configuration guide
-│   ├── data-formats.md        # Data format specifications
-│   ├── development.md         # Development guide
-│   ├── troubleshooting.md     # Troubleshooting guide
+├── docs/                        # 文档
+│   ├── architecture.md          # 架构设计文档
+│   ├── api-reference.md         # API 文档
+│   ├── configuration.md         # 配置指南
+│   ├── data-formats.md          # 数据格式规范
+│   ├── development.md           # 开发指南
+│   ├── troubleshooting.md       # 故障排除指南
 │   │
-│   └── zh-CN/                # Chinese documentation
-│       ├── README.md         # 中文项目说明
-│       ├── architecture.md   # 架构设计文档
-│       ├── configuration.md  # 配置指南
-│       └── development.md    # 开发指南
+│   └── zh-CN/                   # 中文文档
+│       ├── README.md            # 中文项目说明
+│       ├── architecture.md      # 架构设计文档
+│       ├── configuration.md     # 配置指南
+│       └── development.md       # 开发指南
 │
-├── prompts/                   # LLM prompt templates
-│   ├── text_qa_prompt.txt    # Text QA generation prompt
-│   └── vision_qa_prompt.txt  # Vision QA generation prompt
+├── prompts/                     # LLM 提示词模板
+│   ├── text_qa_prompt.txt       # 文本 QA 生成提示词
+│   └── vision_qa_prompt.txt     # 视觉 QA 生成提示词
 │
-├── data/                      # Data directory (git-ignored)
-│   ├── nature_metadata/       # Scraped metadata
-│   ├── pdfs/                 # Downloaded PDFs
-│   ├── ocr_results/          # OCR processing results
-│   ├── figures/              # Extracted figures
-│   ├── sft_data/             # Text QA training data
-│   └── vlm_sft_data/         # Vision QA training data
+├── data/                        # 数据目录（git 忽略）
+│   ├── nature_metadata/         # 爬取的元数据
+│   ├── pdfs/                    # 下载的 PDF 文件
+│   ├── ocr_results/             # OCR 处理结果
+│   ├── figures/                 # 提取的图表
+│   ├── sft_data/                # 文本 QA 训练数据
+│   └── vlm_sft_data/            # 视觉 QA 训练数据
 │
-└── data-sample/              # Sample data for testing
+└── data-sample/                 # 测试用样本数据
     ├── nature_metadata/
     │   └── sample.csv
     ├── pdfs/
@@ -139,24 +127,19 @@ Ryze-Data/
             └── sample_meta.json
 ```
 
-### File Purpose Description / 文件用途说明
+### 文件用途说明
 
-| File/Directory | Purpose | 用途 |
-|----------------|---------|------|
-| `.env.example` | Environment configuration template | 环境配置模板 |
-| `config.example.json` | Configuration with ${VAR:default} syntax | 支持环境变量的配置文件 |
-| `src/config_manager.py` | Unified configuration management | 统一配置管理 |
-| `src/pipeline_manager.py` | Pipeline orchestration logic | 流水线编排逻辑 |
-| `src/cli/main.py` | CLI commands implementation | CLI命令实现 |
-| `src/cli/data_inspector.py` | Data inspection utilities | 数据检查工具 |
-| `src/scrapers/` | Web scraping modules | 网页爬取模块 |
-| `src/downloaders/` | File download logic | 文件下载逻辑 |
-| `src/processors/` | Data processing modules | 数据处理模块 |
-| `src/generators/` | QA generation modules | QA生成模块 |
-| `tests/` | Comprehensive test suite | 完整测试套件 |
-| `docs/` | Technical documentation | 技术文档 |
-| `prompts/` | LLM prompt templates | LLM提示词模板 |
-| `data/` | Runtime data storage | 运行时数据存储 |
+| 文件/目录 | 用途 | 实现状态 |
+|-----------|------|----------|
+| `src/config_manager.py` | 统一配置管理 | ✅ 已实现 |
+| `src/pipeline_manager.py` | 流水线编排逻辑 | ✅ 框架已实现 |
+| `src/api_key_balancer.py` | LLM API 负载均衡 | ✅ 已实现 |
+| `src/chunked-ocr.py` | 分块 OCR 处理 | ✅ 已实现 |
+| `src/cli/main.py` | CLI 命令实现 | ✅ 已实现 |
+| `src/cli/data_inspector.py` | 数据检查工具 | ✅ 已实现 |
+| `src/scrapers/nature_scraper.py` | Nature 文章爬虫 | ✅ 已实现 |
+| `tests/` | 完整测试套件 | ✅ 已实现 |
+| `docs/` | 技术文档 | ✅ 已实现 |
 
 ## 系统架构
 
@@ -175,27 +158,48 @@ Ryze-Data/
 │  │ • Error Handling                                 │   │
 │  │ • State Management                               │   │
 │  └──────────────────────────────────────────────────┘   │
-└─────────┬──────────┬──────────┬──────────┬────────────┘
-          │          │          │          │
-    ┌─────▼────┐ ┌──▼───┐ ┌───▼────┐ ┌───▼────┐
-    │ Scrapers │ │ Down │ │Process │ │ Gener  │
-    │          │ │loader│ │  ors   │ │ ators  │
-    └─────┬────┘ └──┬───┘ └───┬────┘ └───┬────┘
-          │          │          │          │
-    ┌─────▼──────────▼──────────▼──────────▼────┐
-    │           Configuration Manager            │
-    │         (src/config_manager.py)            │
-    └──────────────┬──────────────────────────────┘
+└─────────┬──────────────────────┬────────────────────────┘
+          │                      │
+    ┌─────▼────┐           ┌─────▼─────┐
+    │ Scrapers │           │ Chunked   │
+    │          │           │ OCR       │
+    └─────┬────┘           └─────┬─────┘
+          │                      │
+    ┌─────▼──────────────────────▼────────────────────┐
+    │              API Key Balancer                    │
+    │           (src/api_key_balancer.py)             │
+    │  ┌────────────────────────────────────────┐     │
+    │  │ • Multi-key Load Balancing             │     │
+    │  │ • Automatic Retry & Fallback           │     │
+    │  │ • Rate Limiting                        │     │
+    │  │ • Statistics & Monitoring              │     │
+    │  └────────────────────────────────────────┘     │
+    └─────────────────────┬───────────────────────────┘
+                          │
+    ┌─────────────────────▼───────────────────────────┐
+    │           Configuration Manager                  │
+    │         (src/config_manager.py)                 │
+    └──────────────┬──────────────────────────────────┘
                    │
-    ┌──────────────▼──────────────────────────────┐
-    │              Data Storage                    │
-    │  ┌────────────────────────────────────┐     │
-    │  │ • File System (Local/NFS)          │     │
-    │  │ • Database (Metadata)              │     │
-    │  │ • Object Storage (S3/OSS)          │     │
-    │  └────────────────────────────────────┘     │
-    └──────────────────────────────────────────────┘
+    ┌──────────────▼──────────────────────────────────┐
+    │              Data Storage                        │
+    │  ┌────────────────────────────────────────┐     │
+    │  │ • File System (Local/NFS)              │     │
+    │  │ • CSV Metadata                         │     │
+    │  │ • Markdown + Images                    │     │
+    │  └────────────────────────────────────────┘     │
+    └─────────────────────────────────────────────────┘
 ```
+
+### 流水线阶段
+
+| 阶段 | 状态 | 描述 |
+|------|------|------|
+| scrape | ✅ 已实现 | 从 Nature 等来源爬取文章元数据 |
+| ocr | ✅ 已实现 | 使用 marker 引擎进行 OCR 处理 |
+| download | 📋 计划中 | PDF 文件批量下载 |
+| extract | 📋 计划中 | 图表和结构化内容提取 |
+| generate-qa | 📋 计划中 | 问答对生成 |
 
 ## 核心模块
 
@@ -221,13 +225,13 @@ class PipelineManager:
     def __init__(self, config: ConfigManager):
         self.stages = {}  # 阶段注册表
         self.execution_order = []  # 执行顺序
-    
+
     def add_stage(self, stage: PipelineStage):
         # 注册新阶段
-    
+
     def run(self, stages: List[str]):
         # 执行指定阶段
-    
+
     def _resolve_dependencies(self):
         # 依赖解析（拓扑排序）
 ```
@@ -255,7 +259,39 @@ config.validate()  # 验证配置
 config.save()  # 保存配置
 ```
 
-### 4. Scrapers (`src/scrapers/`)
+### 4. OpenAI API Balancer (`src/api_key_balancer.py`)
+
+**职责**：LLM API 请求负载均衡
+
+**核心功能**：
+- 多 API 密钥并发处理
+- 自动失败重试和 fallback
+- 请求队列管理
+- 统计信息收集
+
+**架构设计**：
+```python
+class OpenAIAPIBalancer:
+    def __init__(self, api_keys: List[str]):
+        self.workers = []  # 工作线程
+        self.request_queue = Queue()  # 请求队列
+        self.result_queue = Queue()  # 结果队列
+        self.retry_queue = Queue()  # 重试队列
+
+    def submit_chat_completion(self, model, messages, **kwargs):
+        # 提交聊天请求
+
+    def get_statistics(self):
+        # 获取统计信息
+```
+
+**请求状态流转**：
+```
+PENDING → PROCESSING → SUCCESS
+                    ↘ FAILED → RETRYING → SUCCESS/FAILED
+```
+
+### 5. Scrapers (`src/scrapers/`)
 
 **职责**：数据源爬取
 
@@ -270,78 +306,54 @@ class BaseScraper(ABC):
 **已实现**：
 - `NatureScraper`：Nature 文章爬取
 
-### 5. Processors (`src/processors/`)
+### 6. Chunked OCR (`src/chunked-ocr.py`)
 
-**职责**：内容处理和提取
+**职责**：大规模 PDF 批量 OCR 处理
 
-**处理器类型**：
-- `FigureExtractor`：图片提取
-- `ContentParser`：内容解析
-- `AbstractExtractor`：摘要提取
-
-### 6. Generators (`src/generators/`)
-
-**职责**：生成训练数据
-
-**生成器类型**：
-- `TextQAGenerator`：文本 QA 生成
-- `VisionQAGenerator`：视觉 QA 生成
-
-**并行处理支持**：
-```python
-class ParallelGenerator:
-    def __init__(self, workers: int):
-        self.pool = Pool(workers)
-    
-    def process_batch(self, items: List):
-        return self.pool.map(self.process_single, items)
-```
+**核心功能**：
+- 并行处理多个 PDF 文件
+- 自动分块和进度跟踪
+- 错误恢复和重试
 
 ## 数据流设计
 
 ### 1. 数据流向
 
 ```
-Web Sources → Scrapers → Metadata DB
+Web Sources → Scrapers → Metadata CSV
                 ↓
-            Downloader → PDF Storage
+            OCR Engine → Markdown + Images
                 ↓
-            OCR Engine → Text/Image Storage
+            (Planned) Processors → Structured Data
                 ↓
-            Processors → Structured Data
-                ↓
-            Generators → Training Data
+            (Planned) Generators → Training Data
 ```
 
 ### 2. 数据格式转换
 
-| 阶段 | 输入格式 | 输出格式 |
-|------|---------|----------|
-| Scraping | HTML | CSV/JSON |
-| Download | URLs | PDF files |
-| OCR | PDF | Markdown + Images |
-| Processing | Markdown | Structured JSON |
-| Generation | JSON | JSONL (QA pairs) |
+| 阶段 | 输入格式 | 输出格式 | 状态 |
+|------|---------|----------|------|
+| Scraping | HTML | CSV | ✅ 已实现 |
+| OCR | PDF | Markdown + Images | ✅ 已实现 |
+| Processing | Markdown | Structured JSON | 📋 计划中 |
+| Generation | JSON | JSONL (QA pairs) | 📋 计划中 |
 
 ### 3. 数据存储策略
-
-**分层存储**：
-- **热数据**：正在处理的数据（本地 SSD）
-- **温数据**：近期处理的数据（本地 HDD）
-- **冷数据**：归档数据（对象存储）
 
 **数据组织**：
 ```
 data/
-├── nature_metadata/     # 元数据
+├── nature_metadata/     # 元数据 CSV
+│   └── articles.csv
 ├── pdfs/               # 原始 PDF
+│   └── {paper_id}.pdf
 ├── ocr_results/        # OCR 结果
-│   ├── {paper_id}/
-│   │   ├── {paper_id}.md
-│   │   ├── {paper_id}_meta.json
-│   │   └── figures/
-├── sft_data/           # 文本 QA
-└── vlm_sft_data/       # 视觉 QA
+│   └── {paper_id}/
+│       ├── {paper_id}.md
+│       ├── {paper_id}_meta.json
+│       └── images/
+├── sft_data/           # 文本 QA（计划中）
+└── vlm_sft_data/       # 视觉 QA（计划中）
 ```
 
 ## 技术栈
@@ -355,7 +367,7 @@ data/
 | 配置 | python-dotenv | 环境变量管理 |
 | OCR | Marker | PDF 转换引擎 |
 | 爬虫 | BeautifulSoup | HTML 解析 |
-| 并行 | multiprocessing | 多进程处理 |
+| 并行 | threading/multiprocessing | 多线程/多进程处理 |
 | 测试 | pytest | 测试框架 |
 
 ### 外部依赖
@@ -364,36 +376,31 @@ data/
 |------|------|--------|
 | OpenAI API | QA 生成 | 必需 |
 | GPU | OCR 加速 | 可选 |
-| Redis | 任务队列 | 可选 |
-| S3/OSS | 数据存储 | 可选 |
 
 ## 扩展性设计
 
-### 1. 插件架构
+### 1. 自定义爬虫
 
-支持通过插件扩展功能：
+添加新的数据源：
 
 ```python
-# 插件接口
-class Plugin(ABC):
-    @abstractmethod
-    def initialize(self, config):
-        pass
-    
-    @abstractmethod
-    def process(self, data):
-        pass
+from src.scrapers.base import BaseScraper
 
-# 插件注册
-plugin_registry.register('custom_processor', CustomPlugin)
+class ArxivScraper(BaseScraper):
+    def scrape(self):
+        # Arxiv 爬取逻辑
+        return articles
+
+# 配置数据源
+config.scrapers.add('arxiv', ArxivScraper)
 ```
 
 ### 2. 自定义处理器
 
-添加新的处理器：
+添加新的处理器（需实现）：
 
 ```python
-class CustomProcessor(BaseProcessor):
+class CustomProcessor:
     def process(self, input_data):
         # 自定义处理逻辑
         return processed_data
@@ -406,53 +413,29 @@ pipeline.add_stage(
 )
 ```
 
-### 3. 数据源扩展
-
-添加新的数据源：
-
-```python
-class ArxivScraper(BaseScraper):
-    def scrape(self):
-        # Arxiv 爬取逻辑
-        return articles
-
-# 配置数据源
-config.scrapers.add('arxiv', ArxivScraper)
-```
-
-### 4. 输出格式扩展
-
-支持自定义输出格式：
-
-```python
-class CustomFormatter(BaseFormatter):
-    def format(self, data):
-        # 自定义格式化
-        return formatted_data
-```
-
 ## 性能优化
 
 ### 1. 并行处理
 
 - **进程级并行**：多进程处理不同文件
-- **线程级并行**：I/O 密集型操作
+- **线程级并行**：I/O 密集型操作（API 请求）
 - **异步处理**：网络请求和 API 调用
 
-### 2. 缓存策略
+### 2. API 负载均衡
 
-- **结果缓存**：避免重复处理
-- **配置缓存**：减少解析开销
-- **连接池**：复用网络连接
+`OpenAIAPIBalancer` 支持：
+- 多 API 密钥轮询
+- 自动失败重试（最多 3 次）
+- 请求限流（每 10 个请求休眠 1 秒）
+- 统计信息监控
 
 ### 3. 批处理优化
 
 ```python
 # 批量处理配置
 BATCH_SIZES = {
-    'download': 10,
     'ocr': 5,
-    'qa_generation': 20
+    'qa_generation': 20  # 计划中
 }
 ```
 
@@ -475,19 +458,21 @@ BATCH_SIZES = {
 - **延迟**：平均处理时间
 - **资源使用**：CPU/内存/磁盘
 
-### 3. 状态追踪
+### 3. API 统计
 
 ```python
-# 处理状态
-class ProcessingStatus:
-    total: int
-    completed: int
-    failed: int
-    skipped: int
-    
-    @property
-    def progress(self):
-        return self.completed / self.total * 100
+stats = balancer.get_statistics()
+# {
+#     "total_requests": 100,
+#     "pending_requests": 5,
+#     "retry_requests": 2,
+#     "completed_results": 93,
+#     "workers": [
+#         {"thread_id": 0, "processed": 35, "failed": 2},
+#         {"thread_id": 1, "processed": 33, "failed": 1},
+#         {"thread_id": 2, "processed": 32, "failed": 0}
+#     ]
+# }
 ```
 
 ## 安全性考虑
@@ -513,19 +498,16 @@ class ProcessingStatus:
 ## 未来规划
 
 ### 短期目标
-
-1. 支持更多数据源（Arxiv、PubMed）
-2. 改进 OCR 精度
-3. 优化并行处理性能
+1. 实现 PDF 下载模块
+2. 实现图表提取模块
+3. 实现 QA 生成模块
 
 ### 中期目标
-
-1. 分布式处理支持
-2. Web UI 界面
-3. 实时处理流水线
+1. 支持更多数据源（Arxiv、PubMed）
+2. 改进 OCR 精度
+3. Web UI 界面
 
 ### 长期目标
-
-1. 机器学习驱动的质量控制
-2. 自动化数据标注
-3. 多模态数据处理
+1. 分布式处理支持
+2. 机器学习驱动的质量控制
+3. 自动化数据标注

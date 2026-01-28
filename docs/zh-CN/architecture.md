@@ -39,10 +39,9 @@ Ryze-Data 是一个模块化、可扩展的科学文献处理框架，采用流�
 ### 1. 单一职责原则（Single Responsibility）
 
 每个模块负责一个明确的功能：
-- **Scraper**：数据爬取和元数据收集
-- **Downloader**：文件下载和存储管理
-- **Processor**：内容处理和转换
-- **Generator**：训练数据生成
+- **Scraper**：数据爬取和元数据收集 ✅
+- **APIBalancer**：API 密钥负载均衡 ✅
+- **OCR**：文档 OCR 处理 ✅
 
 ```python
 # 示例：每个类只负责一个职责
@@ -50,13 +49,13 @@ class NatureScraper:
     """只负责 Nature 网站的爬取"""
     def scrape(self): pass
 
-class PDFDownloader:
-    """只负责 PDF 文件的下载"""
-    def download(self): pass
+class OpenAIAPIBalancer:
+    """只负责 API 密钥的负载均衡"""
+    def submit_request(self): pass
 
-class OCRProcessor:
-    """只负责 OCR 文本提取"""
-    def process(self): pass
+class ConfigManager:
+    """只负责配置管理"""
+    def load(self): pass
 ```
 
 ### 2. 依赖倒置原则（Dependency Inversion）
@@ -118,32 +117,20 @@ Ryze-Data/
 │
 ├── src/                         # 源代码目录
 │   ├── __init__.py
-│   ├── config_manager.py        # 配置管理（支持环境变量扩展）
-│   ├── pipeline_manager.py      # 流水线编排和执行
+│   ├── config_manager.py        # ✅ 配置管理（支持环境变量扩展）
+│   ├── pipeline_manager.py      # ⚠️ 流水线框架（部分实现）
+│   ├── api_key_balancer.py      # ✅ OpenAI API 密钥负载均衡器
+│   ├── chunked-ocr.py           # ✅ 分块 OCR 处理
 │   │
 │   ├── cli/                     # 命令行界面
 │   │   ├── __init__.py
-│   │   ├── main.py             # CLI主入口
-│   │   └── data_inspector.py   # 数据检查和采样工具
+│   │   ├── main.py             # ✅ CLI主入口
+│   │   └── data_inspector.py   # ✅ 数据检查和采样工具
 │   │
-│   ├── scrapers/               # 数据源爬虫
-│   │   ├── __init__.py
-│   │   ├── base.py            # 基础爬虫接口
-│   │   └── nature.py          # Nature文章爬虫
-│   │
-│   ├── downloaders/            # 文件下载工具
-│   │   ├── __init__.py
-│   │   └── pdf_downloader.py  # PDF和补充材料下载器
-│   │
-│   ├── processors/             # 数据处理模块
-│   │   ├── __init__.py
-│   │   ├── ocr_processor.py   # OCR处理（使用marker）
-│   │   └── figure_extractor.py # 图表提取
-│   │
-│   └── generators/             # 数据生成模块
+│   └── scrapers/               # 数据源爬虫
 │       ├── __init__.py
-│       ├── text_qa.py         # 文本QA生成
-│       └── vision_qa.py       # 视觉QA生成
+│       ├── base_scraper.py     # 基础爬虫接口
+│       └── nature_scraper.py   # ✅ Nature文章爬虫
 │
 ├── tests/                      # 测试套件
 │   ├── __init__.py
@@ -186,9 +173,9 @@ Ryze-Data/
 │   ├── nature_metadata/       # 爬取的元数据
 │   ├── pdfs/                 # 下载的PDF文件
 │   ├── ocr_results/          # OCR处理结果
-│   ├── figures/              # 提取的图表
-│   ├── sft_data/             # 文本QA训练数据
-│   └── vlm_sft_data/         # 视觉QA训练数据
+│   ├── figures/              # 提取的图表（📋 计划中）
+│   ├── sft_data/             # 文本QA训练数据（📋 计划中）
+│   └── vlm_sft_data/         # 视觉QA训练数据（📋 计划中）
 │
 └── data-sample/              # 测试用样本数据
     ├── nature_metadata/
@@ -201,24 +188,38 @@ Ryze-Data/
             └── sample_meta.json
 ```
 
+### 实现状态
+
+| 模块 | 状态 | 说明 |
+|------|------|------|
+| ConfigManager | ✅ 已实现 | 完整的配置管理，支持环境变量 |
+| OpenAIAPIBalancer | ✅ 已实现 | 多 API 密钥负载均衡 |
+| Chunked OCR | ✅ 已实现 | 分块 OCR 处理 |
+| NatureScraper | ✅ 已实现 | Nature 文章爬取 |
+| DataInspector | ✅ 已实现 | 数据检查工具 |
+| PipelineManager | ⚠️ 框架 | 流水线框架已实现，具体阶段需扩展 |
+| PDFDownloader | 📋 计划中 | PDF 下载功能 |
+| FigureExtractor | 📋 计划中 | 图表提取功能 |
+| TextQAGenerator | 📋 计划中 | 文本 QA 生成 |
+| VisionQAGenerator | 📋 计划中 | 视觉 QA 生成 |
+
 ### 文件用途说明
 
-| 文件/目录 | 用途 | 说明 |
+| 文件/目录 | 用途 | 状态 |
 |-----------|------|------|
-| `.env.example` | 环境配置模板 | 包含所有可配置的环境变量 |
-| `config.example.json` | 配置文件模板 | 支持${VAR:default}语法 |
-| `src/config_manager.py` | 统一配置管理 | 处理配置优先级和环境变量扩展 |
-| `src/pipeline_manager.py` | 流水线编排逻辑 | 管理各阶段依赖和执行顺序 |
-| `src/cli/main.py` | CLI命令实现 | 提供命令行交互接口 |
-| `src/cli/data_inspector.py` | 数据检查工具 | 采样和检查各阶段数据 |
-| `src/scrapers/` | 网页爬取模块 | 从网站获取文献元数据 |
-| `src/downloaders/` | 文件下载逻辑 | 下载PDF和补充材料 |
-| `src/processors/` | 数据处理模块 | OCR、图表提取等处理 |
-| `src/generators/` | QA生成模块 | 生成训练用问答对 |
-| `tests/` | 完整测试套件 | 单元测试和集成测试 |
-| `docs/` | 技术文档 | 架构、API、配置等文档 |
-| `prompts/` | LLM提示词模板 | QA生成使用的提示词 |
-| `data/` | 运行时数据存储 | 处理过程中的所有数据 |
+| `.env.example` | 环境配置模板 | ✅ |
+| `config.example.json` | 配置文件模板 | ✅ |
+| `src/config_manager.py` | 统一配置管理 | ✅ |
+| `src/pipeline_manager.py` | 流水线编排逻辑 | ⚠️ |
+| `src/api_key_balancer.py` | API 密钥负载均衡 | ✅ |
+| `src/chunked-ocr.py` | 分块 OCR 处理 | ✅ |
+| `src/cli/main.py` | CLI 命令实现 | ✅ |
+| `src/cli/data_inspector.py` | 数据检查工具 | ✅ |
+| `src/scrapers/` | 网页爬取模块 | ✅ |
+| `tests/` | 完整测试套件 | ✅ |
+| `docs/` | 技术文档 | ✅ |
+| `prompts/` | LLM 提示词模板 | ✅ |
+| `data/` | 运行时数据存储 | ✅ |
 
 ## 系统架构
 
@@ -477,76 +478,71 @@ class BaseScraper(ABC):
 - `NatureScraper`：Nature 期刊爬虫
 - 计划支持：ArXiv、PubMed、IEEE Xplore
 
-### 5. 处理器模块（`src/processors/`）
+### 5. API 密钥负载均衡器（`src/api_key_balancer.py`）✅
 
-**职责**：内容处理和提取
+**职责**：管理多个 OpenAI API 密钥，实现负载均衡和自动重试
 
-**处理器类型**：
+**核心功能**：
+- 多 API 密钥轮询
+- 自动失败重试和回退
+- 请求队列管理
+- 统计和监控
 
-| 处理器 | 功能 | 输入 | 输出 |
-|-------|------|------|------|
-| `OCRProcessor` | 文本提取 | PDF | Markdown + 图片 |
-| `FigureExtractor` | 图片提取 | OCR结果 | 图片 + 上下文 |
-| `TableExtractor` | 表格提取 | OCR结果 | 结构化表格 |
-| `AbstractExtractor` | 摘要提取 | OCR结果 | 摘要文本 |
-
-**并行处理架构**：
+**架构设计**：
 ```python
-class ParallelProcessor:
-    def __init__(self, workers: int = 4):
-        self.pool = ProcessPoolExecutor(max_workers=workers)
-        self.futures = []
-    
-    def process_batch(self, items: List[Any]):
-        """批量并行处理"""
-        for item in items:
-            future = self.pool.submit(self.process_single, item)
-            self.futures.append(future)
-        
-        # 收集结果
-        results = []
-        for future in as_completed(self.futures):
-            try:
-                result = future.result(timeout=300)
-                results.append(result)
-            except TimeoutError:
-                self._handle_timeout(future)
-        
-        return results
+class OpenAIAPIBalancer:
+    def __init__(self, api_keys: List[str], num_workers: int = 4):
+        self.api_keys = api_keys
+        self.workers = []
+        self.request_queue = Queue()
+        self.result_dict = {}
+
+    def submit_request(self, request_type: str, **kwargs) -> str:
+        """提交请求到队列"""
+        request_id = str(uuid.uuid4())
+        request = APIRequest(request_id, request_type, kwargs)
+        self.request_queue.put(request)
+        return request_id
+
+    def get_result(self, request_id: str, timeout: float = None):
+        """获取请求结果"""
+        # 等待并返回结果
+        pass
+
+    def get_statistics(self) -> dict:
+        """获取请求统计信息"""
+        return {
+            "total_requests": self.total_requests,
+            "successful_requests": self.successful_requests,
+            "failed_requests": self.failed_requests,
+            "average_latency": self.average_latency
+        }
 ```
 
-### 6. 生成器模块（`src/generators/`）
+**支持的请求类型**：
+- `chat_completion`：聊天补全请求
+- `embedding`：嵌入向量请求
 
-**职责**：生成训练数据
+### 6. 处理器模块（📋 计划中）
 
-**生成器类型**：
-- `TextQAGenerator`：基于文本的问答生成
-- `VisionQAGenerator`：基于图像的问答生成
-- `MultiModalQAGenerator`：多模态问答生成
+> 以下模块为计划中的功能，尚未完全实现。
 
-**质量控制机制**：
-```python
-class QAGenerator:
-    def generate(self, context: str) -> List[QAPair]:
-        """生成并验证问答对"""
-        qa_pairs = self._generate_raw(context)
-        
-        # 质量过滤
-        filtered = self._filter_quality(qa_pairs)
-        
-        # 去重
-        unique = self._remove_duplicates(filtered)
-        
-        # 验证答案
-        validated = self._validate_answers(unique)
-        
-        return validated
-    
-    def _filter_quality(self, qa_pairs):
-        """基于质量分数过滤"""
-        return [qa for qa in qa_pairs 
-                if qa.quality_score >= self.config.quality_threshold]
-```
+**计划的处理器类型**：
+
+| 处理器 | 功能 | 输入 | 输出 | 状态 |
+|-------|------|------|------|------|
+| `OCRProcessor` | 文本提取 | PDF | Markdown + 图片 | ✅ 已实现（chunked-ocr.py）|
+| `FigureExtractor` | 图片提取 | OCR结果 | 图片 + 上下文 | 📋 计划中 |
+| `TableExtractor` | 表格提取 | OCR结果 | 结构化表格 | 📋 计划中 |
+
+### 7. 生成器模块（📋 计划中）
+
+> 以下模块为计划中的功能，尚未实现。
+
+**计划的生成器类型**：
+- `TextQAGenerator`：基于文本的问答生成 📋
+- `VisionQAGenerator`：基于图像的问答生成 📋
+- `MultiModalQAGenerator`：多模态问答生成 📋
 
 ## 数据流设计
 

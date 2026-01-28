@@ -82,35 +82,24 @@ pre-commit run --all-files
 
 ```
 src/
-├── cli/                 # Command-line interface
+├── cli/                     # Command-line interface
 │   ├── __init__.py
-│   ├── main.py         # CLI entry point
-│   └── data_inspector.py # Data inspection utilities
-├── scrapers/           # Web scraping modules
+│   ├── main.py             # ✅ CLI entry point
+│   └── data_inspector.py   # ✅ Data inspection utilities
+├── scrapers/               # Web scraping modules
 │   ├── __init__.py
-│   ├── base_scraper.py # Abstract base class
-│   └── nature_scraper.py # Nature implementation
-├── downloaders/        # Download managers
-│   ├── __init__.py
-│   ├── base_downloader.py
-│   └── pdf_downloader.py
-├── processors/         # Data processors
-│   ├── __init__.py
-│   ├── base_processor.py
-│   ├── ocr_processor.py
-│   └── figure_extractor.py
-├── generators/         # QA generators
-│   ├── __init__.py
-│   ├── base_generator.py
-│   ├── text_qa_generator.py
-│   └── vision_qa_generator.py
-├── config_manager.py   # Configuration management
-├── pipeline_manager.py # Pipeline orchestration
-└── utils/             # Utility functions
-    ├── __init__.py
-    ├── logging.py
-    └── validation.py
+│   ├── base_scraper.py     # Abstract base class
+│   └── nature_scraper.py   # ✅ Nature implementation
+├── config_manager.py       # ✅ Configuration management
+├── pipeline_manager.py     # ⚠️ Pipeline framework (partial)
+├── api_key_balancer.py     # ✅ API key load balancing
+└── chunked-ocr.py          # ✅ Chunked OCR processing
 ```
+
+**Implementation Status:**
+- ✅ Fully implemented
+- ⚠️ Framework implemented, functionality partial
+- Planned modules (downloaders/, processors/, generators/) not yet implemented
 
 ### Design Patterns
 
@@ -419,11 +408,11 @@ class TestPipeline:
         config.load("tests/config.test.json")
         pipeline = PipelineManager(config)
         
-        # Run pipeline
-        result = pipeline.run(stages=['scrape', 'download', 'ocr'])
-        
+        # Run pipeline (currently implemented stages: scrape, ocr)
+        result = pipeline.run(stages=['scrape', 'ocr'])
+
         # Verify
-        assert result.completed_stages == 3
+        assert result.completed_stages == 2
         assert result.failed_stages == 0
 ```
 

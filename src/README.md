@@ -1,8 +1,22 @@
 # RYZE-DATA Design Document
 
-## Module 1: OCR model
+## Implementation Status Overview
+
+| Module | Status | Description |
+|--------|--------|-------------|
+| OCR Model | ✅ Implemented | `chunked-ocr.py` - PDF to Markdown conversion |
+| API Balancer | ✅ Implemented | `api_key_balancer.py` - Multi-key load balancing |
+| Config Manager | ✅ Implemented | `config_manager.py` - Configuration management |
+| NatureScraper | ✅ Implemented | `scrapers/nature_scraper.py` - Nature article scraping |
+| DataInspector | ✅ Implemented | `cli/data_inspector.py` - Data inspection tools |
+| Content Parser | 📋 Planned | Structured content extraction |
+| QA Generator | 📋 Planned | Question-answer pair generation |
+
+## Module 1: OCR Model ✅
 
 OCR Model is provided by [surya](https://github.com/datalab-to/surya) and [marker](https://github.com/datalab-to/marker).
+
+**Implementation:** `src/chunked-ocr.py`
 
 ### Input:
 - `Input PDF Path`
@@ -71,7 +85,43 @@ OCR_Result_Folder
 └── paperN
 ```
 
-## Module 2: Content Parser
+## Module 2: API Key Balancer ✅
+
+**Implementation:** `src/api_key_balancer.py`
+
+Multi-API key load balancer with automatic retry and fallback.
+
+### Features:
+- Multiple API key rotation
+- Automatic failure retry with backoff
+- Request queue management
+- Statistics and monitoring
+
+### Usage:
+
+```python
+from src.api_key_balancer import OpenAIAPIBalancer
+
+# Initialize with multiple API keys
+balancer = OpenAIAPIBalancer(
+    api_keys=["key1", "key2", "key3"],
+    num_workers=4
+)
+
+# Submit chat completion request
+request_id = balancer.submit_chat_completion(
+    model="gpt-4",
+    messages=[{"role": "user", "content": "Hello"}]
+)
+
+# Get result
+result = balancer.get_result(request_id, timeout=60)
+
+# Get statistics
+stats = balancer.get_statistics()
+```
+
+## Module 3: Content Parser (📋 Planned)
 
 Parse the markdown content into structured content, including:
 - Abstract
@@ -115,11 +165,11 @@ OCR_Result_Folder
 └── paperN
 ```
 
-## Module 3: QA Template Manager
+## Module 4: QA Template Manager (📋 Planned)
 
 A group of QA templates are provided by [Ryze-Data](https://github.com/Chivier/Ryze-Data), and the user can add more templates to the template manager.
 
-## Module 4: Data Packer and Dataset Generator
+## Module 5: Data Packer and Dataset Generator (📋 Planned)
 
 ### Input:
 - Parsed Content Folder Path
@@ -136,4 +186,3 @@ Then call LLM batch inference to generate QA pairs, and store the QA pairs to th
 
 ### Output:
 - A group of QA pairs with metadata
-
