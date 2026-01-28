@@ -15,13 +15,13 @@ Ryze-Data is an enterprise-grade, modular framework designed to automate the com
 ### Key Features
 
 - **📚 Intelligent Web Scraping**: Automated collection of scientific articles from Nature and other sources
-- **📄 Advanced PDF Processing**: Parallel downloading with fault tolerance and retry mechanisms
 - **🔍 State-of-the-art OCR**: High-accuracy text and figure extraction using marker engine
-- **🖼️ Context-aware Figure Analysis**: Intelligent extraction of figures with surrounding context
-- **🤖 Multi-modal QA Generation**: Automated generation of both text and vision question-answer pairs
+- **⚖️ LLM Request Auto Balancer**: Automatic load balancing across multiple API keys to avoid rate limits
+- **📦 Chunked OCR Processing**: Batch processing with real-time status tracking and checkpoint recovery
+- **🖼️ Parallel Vision Datagen**: Concurrent processing for vision-based data generation
 - **🔧 Flexible Configuration**: Environment-based configuration with hot-reload support
 - **📊 Real-time Monitoring**: Built-in metrics and logging for pipeline observability
-- **🚀 Production Ready**: Distributed processing support with checkpoint recovery
+- **🚀 Production Ready**: Distributed processing support with GPU acceleration
 
 ## 🚀 Quick Start
 
@@ -55,15 +55,14 @@ nano .env
 ### Basic Usage
 
 ```bash
-# Run the complete pipeline
-python -m src.cli.main pipeline
+# Scrape article metadata from Nature
+python -m src.cli.main scrape
 
-# Or run individual stages
-python -m src.cli.main scrape      # Scrape article metadata
-python -m src.cli.main download    # Download PDF files
-python -m src.cli.main ocr         # Extract text and images
-python -m src.cli.main extract     # Extract figures with context
-python -m src.cli.main generate-qa # Generate QA pairs
+# Run OCR processing on PDF files
+python -m src.cli.main ocr --input-dir <pdf_dir> --output-dir <output_dir>
+
+# Or use the chunked OCR processor directly for batch processing
+python src/chunked-ocr.py --input-dir <pdf_dir> --output-dir <output_dir>
 ```
 
 ### Data Inspection
@@ -86,31 +85,41 @@ python -m src.cli.main inspect stats
 
 ```
 Ryze-Data/
-├── src/                    # Source code
-│   ├── cli/               # Command-line interface
-│   ├── scrapers/          # Web scraping modules
-│   ├── downloaders/       # PDF download managers
-│   ├── processors/        # Data processing engines
-│   ├── generators/        # QA generation modules
-│   ├── config_manager.py  # Configuration management
-│   └── pipeline_manager.py # Pipeline orchestration
-├── prompts/               # LLM prompt templates
-│   ├── text/             # Text QA prompts
-│   └── vision/           # Vision QA prompts
-├── tests/                 # Test suite
-│   ├── unit/             # Unit tests
-│   └── integration/      # Integration tests
-├── docs/                  # Documentation
-│   ├── architecture.md   # System architecture
-│   ├── configuration.md  # Configuration guide
-│   ├── api-reference.md  # API documentation
-│   └── zh-CN/           # Chinese documentation
-├── scripts/              # Utility scripts
-├── data-sample/          # Sample data for testing
-├── .env.example          # Environment template
-├── config.example.json   # Configuration template
-├── requirements.txt      # Python dependencies
-└── README.md            # This file
+├── src/                       # Source code
+│   ├── cli/                   # Command-line interface
+│   │   ├── main.py           # CLI entry point
+│   │   └── data_inspector.py # Data inspection utilities
+│   ├── scrapers/              # Web scraping modules
+│   │   └── nature_scraper.py # Nature article scraper
+│   ├── api_key_balancer.py    # LLM API key load balancer
+│   ├── chunked-ocr.py         # Batch OCR processing with status tracking
+│   ├── config_manager.py      # Configuration management
+│   ├── pipeline_manager.py    # Pipeline orchestration
+│   └── README.md              # Module design documentation
+├── prompts/                   # LLM prompt templates
+│   ├── text/                 # Text QA prompts
+│   └── vision/               # Vision QA prompts
+├── tests/                     # Test suite
+│   ├── unit/                 # Unit tests
+│   ├── integration/          # Integration tests
+│   └── conftest.py           # Pytest fixtures
+├── docs/                      # Documentation
+│   ├── architecture.md       # System architecture
+│   ├── configuration.md      # Configuration guide
+│   ├── api-reference.md      # API documentation
+│   ├── data-formats.md       # Data structure specifications
+│   ├── development.md        # Contributing guide
+│   ├── troubleshooting.md    # Common issues and solutions
+│   └── zh-CN/               # Chinese documentation
+├── imgs/                      # Images and diagrams
+├── scripts/                   # Utility scripts
+│   └── install.sh
+├── data-sample/               # Sample data for testing
+├── .env.example               # Environment template
+├── config.example.json        # Configuration template
+├── requirements.txt           # Python dependencies
+├── pytest.ini                 # Pytest configuration
+└── README.md                  # This file
 ```
 
 ## 🔧 Configuration
@@ -186,12 +195,10 @@ python -m pytest tests/integration/
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
 
 ### 中文文档
+- [中文概述](docs/zh-CN/README.md) - 项目中文介绍
 - [架构设计](docs/zh-CN/architecture.md) - 系统架构与设计决策
 - [配置指南](docs/zh-CN/configuration.md) - 详细配置选项
-- [API参考](docs/zh-CN/api-reference.md) - 完整API文档
-- [数据格式](docs/zh-CN/data-formats.md) - 数据结构规范
 - [开发指南](docs/zh-CN/development.md) - 贡献与扩展
-- [故障排查](docs/zh-CN/troubleshooting.md) - 常见问题与解决方案
 
 ## 🤝 Contributing
 
@@ -248,7 +255,6 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 For issues, questions, or contributions:
 - Open an [Issue](https://github.com/your-username/ryze-data/issues)
 - Check [Troubleshooting Guide](docs/troubleshooting.md)
-- Review [FAQ](docs/faq.md)
 
 ---
 
