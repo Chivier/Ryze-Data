@@ -297,9 +297,37 @@ class BaseScraper(ABC):
 **已实现**：
 - `NatureScraper`：Nature 文章爬取
 
-### 6. Chunked OCR (`src/chunked-ocr.py`)
+### 6. OCR 模块 (`src/ocr/`)
 
-**职责**：大规模 PDF 批量 OCR 处理
+**职责**：可扩展的 PDF 到 Markdown 转换
+
+**架构**：
+```
+BaseOCRModel (ABC)
+├── MarkerOCR          (marker, 默认)
+├── BaseDeepSeekOCR    (共享基类)
+│   ├── DeepSeekOCRv1  (deepseek-ocr,    HF: deepseek-ai/DeepSeek-OCR)
+│   └── DeepSeekOCRv2  (deepseek-ocr-v2, HF: deepseek-ai/DeepSeek-OCR-2)
+├── MarkItDownOCR      (markitdown, 存根)
+└── Pdf2MdOCR          (pdf2md, 存根)
+```
+
+**核心机制**：
+- `OCRRegistry`：装饰器注册 + 名称查找
+- `BaseDeepSeekOCR`：懒加载模型、PDF 转图像、逐页推理、Markdown 组装
+- 通过 `--ocr-model` CLI 参数选择模型
+
+**模型选择**：
+```bash
+uv run python -m src.cli.main list-ocr-models          # 查看可用模型
+uv run python -m src.cli.main ocr --ocr-model marker    # Marker (默认)
+uv run python -m src.cli.main ocr --ocr-model deepseek-ocr    # DeepSeek v1
+uv run python -m src.cli.main ocr --ocr-model deepseek-ocr-v2 # DeepSeek v2
+```
+
+### 7. Chunked OCR (`src/chunked-ocr.py`) (Legacy)
+
+**职责**：大规模 PDF 批量 OCR 处理（旧版，建议使用 `src/ocr/` 模块）
 
 **核心功能**：
 - 并行处理多个 PDF 文件
@@ -356,7 +384,7 @@ data/
 | 语言 | Python 3.8+ | 主开发语言 |
 | CLI | Click | 命令行框架 |
 | 配置 | python-dotenv | 环境变量管理 |
-| OCR | Marker | PDF 转换引擎 |
+| OCR | Marker / DeepSeek-OCR | PDF 转换引擎（多模型可选） |
 | 爬虫 | BeautifulSoup | HTML 解析 |
 | 并行 | threading/multiprocessing | 多线程/多进程处理 |
 | 测试 | pytest | 测试框架 |
@@ -386,7 +414,41 @@ class ArxivScraper(BaseScraper):
 config.scrapers.add('arxiv', ArxivScraper)
 ```
 
-### 2. 自定义处理器
+### 2. 自定义 OCR 模型
+
+添加新的 OCR 引擎：
+
+```python
+from src.ocr.base_ocr import BaseOCRModel, OCRResult
+from src.ocr.registry import OCRRegistry
+
+@OCRRegistry.register
+class MyOCR(BaseOCRModel):
+    MODEL_NAME = "my-ocr"
+
+    @property
+    def name(self) -> str:
+        return "My OCR"
+
+    @classmethod
+    def is_available(cls) -> bool:
+        try:
+            import my_ocr_lib  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    def process_single(self, pdf_path: str) -> OCRResult:
+        # 实现 PDF → Markdown 转换
+        ...
+```
+
+在 `src/ocr/__init__.py` 中添加导入即可自动注册：
+```python
+import src.ocr.my_ocr  # noqa: F401
+```
+
+### 3. 自定义处理器
 
 添加新的处理器（需实现）：
 

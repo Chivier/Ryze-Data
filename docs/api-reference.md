@@ -3,6 +3,10 @@
 ## Table of Contents
 
 - [ConfigManager](#configmanager)
+- [OCR Models](#ocr-models)
+  - [OCRRegistry](#ocrregistry)
+  - [BaseOCRModel](#baseocrmodel)
+  - [Available Models](#available-models)
 - [QA Generators](#qa-generators)
   - [QAPair](#qapair)
   - [BaseQAGenerator](#baseqagenerator)
@@ -79,6 +83,105 @@ class ModelConfig:
     api_key_env: str = "OPENAI_API_KEY"
     max_tokens: int = 2048
     temperature: float = 0.7
+```
+
+---
+
+## OCR Models
+
+The OCR module (`src.ocr`) provides an extensible, registry-based system for PDF-to-Markdown conversion. Models are discovered via decorator-based registration and selected by name at runtime.
+
+### OCRRegistry
+
+Central registry for discovering and selecting OCR model implementations.
+
+```python
+from src.ocr import OCRRegistry
+
+# List all registered model names
+OCRRegistry.list_all()
+# ['deepseek-ocr', 'deepseek-ocr-v2', 'marker', 'markitdown', 'pdf2md']
+
+# List only models whose dependencies are installed
+OCRRegistry.list_available()
+
+# List models with install status
+OCRRegistry.list_models_with_status()
+# [{'name': 'marker', 'status': 'available'}, ...]
+
+# Instantiate a model by name
+model = OCRRegistry.get_model("deepseek-ocr", output_dir="./data/ocr_results")
+```
+
+#### Key Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `list_all()` | `List[str]` | All registered model names |
+| `list_available()` | `List[str]` | Models with dependencies installed |
+| `list_models_with_status()` | `List[Dict]` | Name + availability status |
+| `get_model(name, output_dir)` | `BaseOCRModel` | Instantiate a model (raises if unavailable) |
+| `get_model_class(name)` | `Type` | Get class without instantiating |
+
+### BaseOCRModel
+
+Abstract base class that all OCR models must implement.
+
+```python
+from src.ocr import BaseOCRModel, OCRResult, OCRRegistry
+
+@OCRRegistry.register
+class MyOCR(BaseOCRModel):
+    MODEL_NAME = "my-ocr"
+
+    @property
+    def name(self) -> str:
+        return "My Custom OCR"
+
+    @classmethod
+    def is_available(cls) -> bool:
+        # Check if dependencies are installed
+        return True
+
+    def process_single(self, pdf_path: str) -> OCRResult:
+        # Process one PDF, return OCRResult
+        ...
+```
+
+#### Required Interface
+
+| Member | Type | Description |
+|--------|------|-------------|
+| `MODEL_NAME` | `str` (class attr) | Unique registry key (e.g. `"deepseek-ocr"`) |
+| `name` | property | Human-readable display name |
+| `is_available()` | classmethod | Check if dependencies are installed |
+| `process_single(pdf_path)` | method | Process one PDF → `OCRResult` |
+
+#### Optional Overrides
+
+| Method | Default | Description |
+|--------|---------|-------------|
+| `supports_batch()` | `False` | Whether native batch processing is supported |
+| `process_batch(paths, gpu_count, workers)` | Sequential fallback | Batch processing implementation |
+
+### Available Models
+
+| `--ocr-model` | Class | HuggingFace Model | Notes |
+|----------------|-------|-------------------|-------|
+| `marker` | `MarkerOCR` | N/A (CLI-based) | Default. Supports multi-GPU batch via `marker_chunk_convert` |
+| `deepseek-ocr` | `DeepSeekOCRv1` | `deepseek-ai/DeepSeek-OCR` | Local inference, 640px images, `test_compress=True` |
+| `deepseek-ocr-v2` | `DeepSeekOCRv2` | `deepseek-ai/DeepSeek-OCR-2` | Local inference, 768px images |
+| `markitdown` | `MarkItDownOCR` | N/A | Stub (not yet implemented) |
+| `pdf2md` | `Pdf2MdOCR` | N/A | Stub (not yet implemented) |
+
+#### DeepSeek-OCR Installation
+
+```bash
+# Install optional dependency group
+uv sync --extra deepseek-ocr
+
+# Requires CUDA GPU with ~6GB VRAM (bfloat16)
+# flash_attention_2 used when flash-attn is installed, falls back to eager
 ```
 
 ---
@@ -502,14 +605,58 @@ uv run python -m src.cli.main pipeline --stages ocr --stages qa
 uv run python -m src.cli.main pipeline --stages qa --quality-filter
 ```
 
+### list-ocr-models
+
+List registered OCR models and their installation status.
+
+```bash
+uv run python -m src.cli.main list-ocr-models
+```
+
+**Output Example**:
+```
+Registered OCR models:
+
+  deepseek-ocr   [not installed]
+  deepseek-ocr-v2 [not installed]
+  marker         [available]
+  markitdown     [not installed]
+  pdf2md         [not installed]
+```
+
+### ocr
+
+Run OCR processing on PDF files.
+
+```bash
+uv run python -m src.cli.main ocr [OPTIONS]
+```
+
+**Options**:
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--input-dir` | path | - | Directory containing PDF files |
+| `--output-dir` | path | - | Directory for OCR output |
+| `--batch-size` | int | 10 | Batch size for processing |
+| `--ocr-model` | text | marker | OCR model to use (see `list-ocr-models`) |
+
+**Examples**:
+```bash
+# Default (Marker)
+uv run python -m src.cli.main ocr --input-dir data/pdfs --output-dir data/ocr_results
+
+# DeepSeek-OCR v1
+uv run python -m src.cli.main ocr --input-dir data/pdfs --output-dir data/ocr_results --ocr-model deepseek-ocr
+
+# DeepSeek-OCR v2
+uv run python -m src.cli.main ocr --input-dir data/pdfs --output-dir data/ocr_results --ocr-model deepseek-ocr-v2
+```
+
 ### Other Commands
 
 ```bash
 # Scrape Nature metadata
 uv run python -m src.cli.main scrape
-
-# Run OCR processing
-uv run python -m src.cli.main ocr --input-dir <pdf_dir> --output-dir <output_dir>
 
 # Show configuration
 uv run python -m src.cli.main config-show

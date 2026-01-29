@@ -166,6 +166,7 @@ RYZE_STATUS_PORT=9090
     "gpu_memory_limit": 0.5,
     "timeout_seconds": 300
   },
+  // 注意：ocr.model 可选值见下方 "OCR 模型选择" 小节
   
   "paths": {
     "data_root": "${RYZE_DATA_ROOT:./data}",
@@ -277,7 +278,46 @@ RYZE_BATCH_SIZE=20         # 增大批处理
 RYZE_NUM_WORKERS=8         # 增加并行度
 ```
 
-### 5. 分布式处理配置
+### 5. OCR 模型选择
+
+Ryze-Data 内置多种 OCR 模型，通过 `--ocr-model` 命令行参数或配置文件中的 `ocr.model` 字段选择：
+
+```bash
+# 查看所有可用模型及安装状态
+uv run python -m src.cli.main list-ocr-models
+
+# 使用指定模型运行 OCR
+uv run python -m src.cli.main ocr \
+    --input-dir data/pdfs \
+    --output-dir data/ocr_results \
+    --ocr-model deepseek-ocr
+```
+
+#### 已注册模型
+
+| 模型名称 | `--ocr-model` 值 | 依赖 | 说明 |
+|----------|------------------|------|------|
+| Marker | `marker` (默认) | `marker` CLI | 基于 CLI 的 PDF 转换，支持多 GPU 批处理 |
+| DeepSeek-OCR v1 | `deepseek-ocr` | `torch`, `transformers` | 本地 HuggingFace 推理，640px 输入 |
+| DeepSeek-OCR v2 | `deepseek-ocr-v2` | `torch`, `transformers` | 本地 HuggingFace 推理，768px 输入 |
+| MarkItDown | `markitdown` | `markitdown` | 存根（待实现） |
+| pdf2md | `pdf2md` | `pdf2md` | 存根（待实现） |
+
+#### 安装 DeepSeek-OCR 依赖
+
+DeepSeek-OCR v1/v2 需要额外的 GPU 依赖：
+
+```bash
+# 安装可选依赖组
+uv sync --extra deepseek-ocr
+
+# 或手动安装
+uv add torch transformers flash-attn einops
+```
+
+> **硬件要求**：DeepSeek-OCR 模型约需 6GB 显存 (bfloat16)，建议使用支持 flash_attention_2 的 GPU 以获得最佳性能。
+
+### 6. 分布式处理配置
 
 ```bash
 # 多服务器下载

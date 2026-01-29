@@ -15,7 +15,7 @@ Ryze-Data is an enterprise-grade, modular framework designed to automate the com
 ### Key Features
 
 - **Intelligent Web Scraping**: Automated collection of scientific articles from Nature and other sources
-- **State-of-the-art OCR**: High-accuracy text and figure extraction using marker engine
+- **Multi-engine OCR**: Extensible OCR with Marker, DeepSeek-OCR v1/v2, and more
 - **LLM Request Auto Balancer**: Automatic load balancing across multiple API keys
 - **Text QA Generation**: Generate question-answer pairs from OCR markdown files
 - **Vision QA Generation**: Generate visual QA pairs from figures (LlamaFactory compatible)
@@ -51,8 +51,14 @@ cp .env.example .env
 # Scrape article metadata from Nature
 uv run python -m src.cli.main scrape
 
-# Run OCR processing on PDF files
+# List available OCR models
+uv run python -m src.cli.main list-ocr-models
+
+# Run OCR processing (default: marker)
 uv run python -m src.cli.main ocr --input-dir data/pdfs --output-dir data/ocr_results
+
+# Run OCR with a specific model
+uv run python -m src.cli.main ocr --input-dir data/pdfs --output-dir data/ocr_results --ocr-model deepseek-ocr
 
 # Generate text QA pairs
 uv run python -m src.cli.main generate-qa --mode text --qa-ratio 8
@@ -97,7 +103,14 @@ Ryze-Data/
 │   ├── scrapers/              # Web scraping modules
 │   │   └── nature_scraper.py # Nature article scraper
 │   ├── api_key_balancer.py    # LLM API key load balancer
-│   ├── chunked-ocr.py         # Batch OCR processing
+│   ├── ocr/                    # Extensible OCR module
+│   │   ├── base_ocr.py        # Abstract base class + OCRResult
+│   │   ├── deepseek_base.py   # Shared DeepSeek base class
+│   │   ├── deepseek_ocr.py    # DeepSeek-OCR v1
+│   │   ├── deepseek_ocr_v2.py # DeepSeek-OCR v2
+│   │   ├── marker_ocr.py      # Marker OCR (default)
+│   │   └── registry.py        # OCRRegistry (model discovery)
+│   ├── chunked-ocr.py         # Legacy batch OCR processing
 │   ├── config_manager.py      # Configuration management
 │   └── pipeline_manager.py    # Pipeline orchestration
 ├── prompts/                   # LLM prompt templates
@@ -219,5 +232,6 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 ## Acknowledgments
 
 - [Marker](https://github.com/VikParuchuri/marker) - OCR engine
+- [DeepSeek-OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - Vision-based OCR models
 - [OpenAI](https://openai.com) - LLM APIs
 - [LlamaFactory](https://github.com/hiyouga/LLaMA-Factory) - Training framework compatibility
