@@ -86,41 +86,117 @@ def download(ctx, workers, servers):
 @click.option("--input-dir", help="Directory containing PDFs")
 @click.option("--output-dir", help="Directory for OCR output")
 @click.option("--batch-size", default=10, help="Batch size for processing")
+@click.option(
+    "--ocr-model",
+    default="marker",
+    help="OCR model to use (see list-ocr-models)",
+)
 @click.pass_context
-def ocr(ctx, input_dir, output_dir, batch_size):
+def ocr(ctx, input_dir, output_dir, batch_size, ocr_model):
     """Run OCR on PDF files"""
+    import time
+
+    from src.ocr import OCRRegistry, OCRStatusTracker, detect_devices
+
     cfg = ctx.obj["config"]
 
-    input_path = input_dir or cfg.paths.pdf_dir
-    output_path = output_dir or cfg.paths.ocr_output
+    input_path = Path(input_dir or cfg.paths.pdf_dir)
+    output_path = Path(output_dir or cfg.paths.ocr_output)
+    output_path.mkdir(parents=True, exist_ok=True)
 
-    click.echo("Starting OCR processing...")
+    click.echo(f"Starting OCR processing with model: {ocr_model}")
     click.echo(f"Input: {input_path}")
     click.echo(f"Output: {output_path}")
 
-    # Run the chunked OCR script
-    import subprocess
-
-    result = subprocess.run(
-        [
-            sys.executable,
-            "src/chunked-ocr.py",
-            "--input",
-            input_path,
-            "--output",
-            output_path,
-            "--batch-size",
-            str(batch_size),
-        ],
-        capture_output=True,
-        text=True,
-    )
-
-    if result.returncode == 0:
-        click.echo("OCR processing completed!")
-    else:
-        click.echo(f"OCR processing failed: {result.stderr}", err=True)
+    # Collect PDF files
+    pdf_files = [
+        str(input_path / f)
+        for f in sorted(input_path.iterdir())
+        if f.is_file() and f.suffix == ".pdf"
+    ]
+    if not pdf_files:
+        click.echo("No PDF files found in input directory.", err=True)
         sys.exit(1)
+    click.echo(f"Found {len(pdf_files)} PDF files")
+
+    # Instantiate the OCR model
+    try:
+        model = OCRRegistry.get_model(ocr_model, output_dir=str(output_path))
+    except (ValueError, RuntimeError) as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    # Detect devices
+    gpu_count, device_workers = detect_devices()
+    total_workers = sum(device_workers.values())
+    click.echo(f"Using {total_workers} workers across {len(device_workers)} devices")
+
+    # Set up status tracking
+    tracker = OCRStatusTracker(
+        output_dir=str(output_path),
+        task_name="ocr_processing",
+        metrics_port=cfg.monitoring.metrics_port,
+    )
+    tracker.total_files = len(pdf_files)
+    tracker.start_server()
+
+    # Process PDFs
+    start_time = time.time()
+
+    if model.supports_batch() and gpu_count > 1:
+        avg_workers = total_workers // max(1, gpu_count)
+        results = model.process_batch(pdf_files, gpu_count, avg_workers)
+        for result in results:
+            tracker.record_result(result)
+    else:
+        for pdf_path in pdf_files:
+            result = model.process_single(pdf_path)
+            tracker.record_result(result)
+
+    tracker.flush()
+    elapsed = time.time() - start_time
+
+    # Summary
+    click.echo(f"\n{'=' * 50}")
+    click.echo("OCR Processing Summary")
+    click.echo(f"{'=' * 50}")
+    click.echo(f"Total files: {tracker.total_files}")
+    click.echo(f"Successful: {tracker.completed_files}")
+    click.echo(f"Failed: {tracker.failed_files}")
+    click.echo(f"Total time: {elapsed:.2f} seconds")
+    if tracker.total_files > 0:
+        click.echo(
+            f"Average time per file: {elapsed / tracker.total_files:.2f} seconds"
+        )
+    click.echo(
+        f"\nStatus available at: "
+        f"http://localhost:{cfg.monitoring.metrics_port}/status"
+    )
+    click.echo(f"Results saved to: {tracker.csv_path}")
+
+    tracker.stop_server()
+    click.echo("OCR processing completed!")
+
+
+@cli.command(name="list-ocr-models")
+def list_ocr_models():
+    """List available OCR models and their install status"""
+    from src.ocr import OCRRegistry
+
+    models = OCRRegistry.list_models_with_status()
+    if not models:
+        click.echo("No OCR models registered.")
+        return
+
+    click.echo("\nRegistered OCR models:\n")
+    for entry in models:
+        status_str = (
+            click.style(f"[{entry['status']}]", fg="green")
+            if entry["status"] == "available"
+            else click.style(f"[{entry['status']}]", fg="yellow")
+        )
+        click.echo(f"  {entry['name']:<14} {status_str}")
+    click.echo()
 
 
 @cli.command()
