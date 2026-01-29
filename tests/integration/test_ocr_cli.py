@@ -55,7 +55,7 @@ class TestListOCRModels:
         """list-ocr-models should show stub models."""
         result = runner.invoke(cli, ["list-ocr-models"], catch_exceptions=False)
         assert result.exit_code == 0
-        assert "deepseek" in result.output
+        assert "deepseek-ocr" in result.output
         assert "markitdown" in result.output
         assert "pdf2md" in result.output
 

@@ -1,34 +1,11 @@
-"""Unit tests for OCR stub models (DeepSeek, MarkItDown, pdf2md)."""
+"""Unit tests for OCR stub models (MarkItDown, pdf2md)."""
 
 import tempfile
 
 import pytest
 
-from src.ocr.deepseek_ocr import DeepSeekOCR
 from src.ocr.markitdown_ocr import MarkItDownOCR
 from src.ocr.pdf2md_ocr import Pdf2MdOCR
-
-
-class TestDeepSeekOCR:
-    """Test DeepSeekOCR stub."""
-
-    def test_model_name(self):
-        assert DeepSeekOCR.MODEL_NAME == "deepseek"
-
-    def test_is_available_returns_bool(self):
-        result = DeepSeekOCR.is_available()
-        assert isinstance(result, bool)
-
-    def test_process_single_raises_not_implemented(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model = DeepSeekOCR(output_dir=tmpdir)
-            with pytest.raises(NotImplementedError, match="stub"):
-                model.process_single("/data/test.pdf")
-
-    def test_name_property(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            model = DeepSeekOCR(output_dir=tmpdir)
-            assert model.name == "DeepSeek-VL2"
 
 
 class TestMarkItDownOCR:

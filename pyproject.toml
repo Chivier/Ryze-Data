@@ -34,6 +34,15 @@ dev = [
     "pre-commit>=3.0.0",
 ]
 
+deepseek-ocr = [
+    "torch>=2.0.0",
+    "transformers==4.46.3",
+    "flash-attn>=2.0.0",
+    "einops>=0.7.0",
+    "addict>=2.4.0",
+    "easydict>=1.10",
+]
+
 [project.scripts]
 ryze-data = "src.cli.main:main"
 
