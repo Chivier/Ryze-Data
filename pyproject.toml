@@ -43,6 +43,12 @@ deepseek-ocr = [
     "easydict>=1.10",
 ]
 
+markitdown = ["markitdown>=0.1.0"]
+
+benchmark = [
+    "datasets>=2.14.0",
+]
+
 [project.scripts]
 ryze-data = "src.cli.main:main"
 

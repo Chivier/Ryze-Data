@@ -1,0 +1,5 @@
+Based on the provided content, answer the following question concisely.
+
+Question: {question}
+
+Provide a direct, concise answer.

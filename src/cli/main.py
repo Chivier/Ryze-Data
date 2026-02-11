@@ -354,6 +354,167 @@ def config_show(ctx):
 cli.add_command(inspect_command)
 
 
+# ============== Benchmark Commands ==============
+
+
+@cli.group()
+def benchmark():
+    """OCR benchmark evaluation commands"""
+    pass
+
+
+@benchmark.command(name="run")
+@click.option(
+    "--dataset",
+    "-d",
+    required=True,
+    type=click.Choice(["arxivqa", "slidevqa"]),
+    help="Benchmark dataset to evaluate on",
+)
+@click.option(
+    "--ocr-models",
+    default="marker,deepseek-ocr,deepseek-ocr-v2,markitdown",
+    help="Comma-separated list of OCR models to evaluate",
+)
+@click.option(
+    "--include-baseline/--no-baseline",
+    default=True,
+    help="Include vision-only baseline (Path 0)",
+)
+@click.option(
+    "--max-samples",
+    default=0,
+    help="Maximum samples to evaluate (0 = all)",
+)
+@click.option(
+    "--qa-model",
+    default="Qwen3-VL-8B",
+    help="QA model name for API calls",
+)
+@click.option(
+    "--qa-api-base",
+    default="http://localhost:8000/v1",
+    help="Base URL for the QA model API",
+)
+@click.option(
+    "--qa-api-key",
+    default="EMPTY",
+    help="API key for the QA model (EMPTY for local vLLM)",
+)
+@click.option(
+    "--results-dir",
+    default="data/benchmark_results",
+    help="Directory for caching results",
+)
+def benchmark_run(
+    dataset,
+    ocr_models,
+    include_baseline,
+    max_samples,
+    qa_model,
+    qa_api_base,
+    qa_api_key,
+    results_dir,
+):
+    """Run OCR benchmark evaluation on a dataset"""
+    from src.benchmark.datasets.arxivqa import ArxivQADataset
+    from src.benchmark.datasets.slidevqa import SlideVQADataset
+    from src.benchmark.evaluator import BenchmarkEvaluator
+    from src.benchmark.qa_client import QwenQAClient
+    from src.benchmark.report import print_report, save_report
+
+    # Select dataset
+    dataset_map = {
+        "arxivqa": ArxivQADataset,
+        "slidevqa": SlideVQADataset,
+    }
+    dataset_cls = dataset_map[dataset]
+    ds = dataset_cls(data_dir=results_dir)
+
+    # Initialize QA client
+    qa_client = QwenQAClient(
+        model=qa_model,
+        api_base=qa_api_base,
+        api_key=qa_api_key,
+    )
+
+    # Initialize evaluator
+    evaluator = BenchmarkEvaluator(
+        qa_client=qa_client,
+        results_dir=results_dir,
+    )
+
+    # Parse OCR model list
+    model_list = [m.strip() for m in ocr_models.split(",") if m.strip()]
+
+    click.echo(f"Running benchmark on {dataset} with models: {model_list}")
+    if include_baseline:
+        click.echo("Including vision baseline (Path 0)")
+    if max_samples > 0:
+        click.echo(f"Max samples: {max_samples}")
+
+    # Run evaluation
+    report = evaluator.run(
+        dataset=ds,
+        ocr_models=model_list,
+        max_samples=max_samples,
+        include_baseline=include_baseline,
+    )
+
+    # Display and save results
+    print_report(report)
+    saved = save_report(report, results_dir)
+    for path in saved:
+        click.echo(f"Report saved to: {path}")
+
+
+@benchmark.command(name="report")
+@click.option(
+    "--results-dir",
+    default="data/benchmark_results",
+    help="Directory containing benchmark results",
+)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["table", "csv", "markdown"]),
+    default="table",
+    help="Output format",
+)
+@click.option(
+    "--dataset",
+    "-d",
+    required=True,
+    type=click.Choice(["arxivqa", "slidevqa"]),
+    help="Dataset to show report for",
+)
+def benchmark_report(results_dir, output_format, dataset):
+    """View benchmark results in various formats"""
+    from pathlib import Path as P
+
+    results_path = P(results_dir)
+
+    if output_format == "csv":
+        csv_file = results_path / f"{dataset}_results.csv"
+        if csv_file.exists():
+            click.echo(csv_file.read_text())
+        else:
+            click.echo(f"No CSV results found at {csv_file}", err=True)
+
+    elif output_format == "markdown":
+        md_file = results_path / f"{dataset}_results.md"
+        if md_file.exists():
+            click.echo(md_file.read_text())
+        else:
+            click.echo(f"No Markdown results found at {md_file}", err=True)
+
+    else:  # table
+        click.echo(
+            "Run 'benchmark run' first to generate results, "
+            "then use --format csv or --format markdown to view saved reports."
+        )
+
+
 def main():
     """Main entry point for the CLI"""
     try:
