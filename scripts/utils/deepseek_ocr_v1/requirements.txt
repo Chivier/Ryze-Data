@@ -1,0 +1,9 @@
+torch
+transformers==4.46.3
+flash-attn
+einops
+addict
+easydict
+Pillow
+datasets
+tqdm

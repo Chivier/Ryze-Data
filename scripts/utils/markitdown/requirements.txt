@@ -1,0 +1,5 @@
+markitdown
+Pillow
+pdf2image
+datasets
+tqdm

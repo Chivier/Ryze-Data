@@ -300,8 +300,7 @@ uv run python -m src.cli.main ocr \
 | Marker | `marker` (默认) | `marker` CLI | 基于 CLI 的 PDF 转换，支持多 GPU 批处理 |
 | DeepSeek-OCR v1 | `deepseek-ocr` | `torch`, `transformers` | 本地 HuggingFace 推理，640px 输入 |
 | DeepSeek-OCR v2 | `deepseek-ocr-v2` | `torch`, `transformers` | 本地 HuggingFace 推理，768px 输入 |
-| MarkItDown | `markitdown` | `markitdown` | 存根（待实现） |
-| pdf2md | `pdf2md` | `pdf2md` | 存根（待实现） |
+| MarkItDown | `markitdown` | `markitdown` | Microsoft MarkItDown PDF 转 Markdown |
 
 #### 安装 DeepSeek-OCR 依赖
 
@@ -317,7 +316,33 @@ uv add torch transformers flash-attn einops
 
 > **硬件要求**：DeepSeek-OCR 模型约需 6GB 显存 (bfloat16)，建议使用支持 flash_attention_2 的 GPU 以获得最佳性能。
 
-### 6. 分布式处理配置
+### 6. 独立 OCR 预处理脚本
+
+除了通过 CLI 运行 OCR，还可以使用 `scripts/utils/` 下的独立脚本对 HuggingFace 数据集进行批量 OCR 预处理。每个模型拥有独立的虚拟环境：
+
+```bash
+# 设置模型环境
+cd scripts/utils/markitdown && bash setup_env.sh
+
+# 运行 OCR（ArxivQA，5 个样本）
+.venv/bin/python run_ocr.py --dataset arxivqa --max-samples 5
+
+# DeepSeek 模型需要指定 GPU
+cd ../deepseek_ocr_v1 && bash setup_env.sh
+.venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
+```
+
+**通用 CLI 参数：**
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--dataset` | 必填 | `arxivqa` 或 `slidevqa` |
+| `--output-dir` | `data/ocr_precompute/{model}/{dataset}` | 输出目录 |
+| `--cache-dir` | `data/benchmark_data` | 共享图像缓存目录 |
+| `--max-samples` | `0`（全部） | 最大样本数 |
+| `--gpu` | `0` | GPU 设备 ID（仅 DeepSeek） |
+
+### 7. 分布式处理配置
 
 ```bash
 # 多服务器下载

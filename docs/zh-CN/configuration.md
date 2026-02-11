@@ -589,7 +589,33 @@ RYZE_NUM_WORKERS=8           # 增加并行度
 RYZE_USE_FP16=true          # 使用半精度计算
 ```
 
-### 5. 分布式处理配置
+### 5. 独立 OCR 预处理脚本
+
+除了通过 CLI 运行 OCR，还可以使用 `scripts/utils/` 下的独立脚本对 HuggingFace 数据集进行批量 OCR 预处理。每个模型拥有独立的虚拟环境：
+
+```bash
+# 设置模型环境
+cd scripts/utils/markitdown && bash setup_env.sh
+
+# 运行 OCR（ArxivQA，5 个样本）
+.venv/bin/python run_ocr.py --dataset arxivqa --max-samples 5
+
+# DeepSeek 模型需要指定 GPU
+cd ../deepseek_ocr_v1 && bash setup_env.sh
+.venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
+```
+
+**通用 CLI 参数：**
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--dataset` | 必填 | `arxivqa` 或 `slidevqa` |
+| `--output-dir` | `data/ocr_precompute/{model}/{dataset}` | 输出目录 |
+| `--cache-dir` | `data/benchmark_data` | 共享图像缓存目录 |
+| `--max-samples` | `0`（全部） | 最大样本数 |
+| `--gpu` | `0` | GPU 设备 ID（仅 DeepSeek） |
+
+### 6. 分布式处理配置
 
 ```bash
 # 主节点配置

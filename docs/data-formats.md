@@ -157,6 +157,57 @@ OCR_Result_Folder/
 └── paperN/
 ```
 
+## OCR 预处理输出格式 (Standalone Scripts)
+
+### 预处理结果目录结构
+
+**位置**: `data/ocr_precompute/{model_name}/{dataset}/`
+
+**说明**: 由 `scripts/utils/{model}/run_ocr.py` 生成，每个样本一个子目录。
+
+**结构**:
+```
+data/ocr_precompute/
+├── markitdown/
+│   ├── arxivqa/
+│   │   ├── arxivqa_0/
+│   │   │   └── arxivqa_0.md
+│   │   ├── arxivqa_1/
+│   │   │   └── arxivqa_1.md
+│   │   └── ...
+│   └── slidevqa/
+│       ├── slidevqa_0/
+│       │   └── slidevqa_0.md
+│       └── ...
+├── marker/
+│   └── ...
+├── deepseek_ocr_v1/
+│   └── ...
+└── deepseek_ocr_v2/
+    └── ...
+```
+
+### 共享 PDF 缓存
+
+Marker 和 MarkItDown 需要 PDF 输入，图像到 PDF 的转换结果缓存在共享目录：
+
+**位置**: `data/benchmark_data/ocr_pdfs/{dataset}/`
+
+```
+data/benchmark_data/ocr_pdfs/
+├── arxivqa/
+│   ├── arxivqa_0.pdf
+│   ├── arxivqa_1.pdf
+│   └── ...
+└── slidevqa/
+    ├── slidevqa_0.pdf
+    └── ...
+```
+
+### 断点续传
+
+如果 `{output_dir}/{sample_id}/{sample_id}.md` 已存在，脚本会自动跳过该样本。
+
 ## 图片提取格式 (Vision QA Input)
 
 ### 图片数据 ({paper_id}.json)

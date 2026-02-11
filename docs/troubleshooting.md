@@ -388,6 +388,93 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
+## 独立 OCR 脚本问题
+
+### 虚拟环境设置失败
+
+#### 症状
+```
+Error: uv is not installed.
+```
+
+#### 解决方案
+```bash
+# 安装 uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 重新运行 setup
+cd scripts/utils/markitdown && bash setup_env.sh
+```
+
+### 数据集下载失败
+
+#### 症状
+```
+ConnectionError: Couldn't reach 'https://huggingface.co/...'
+```
+
+#### 解决方案
+```bash
+# 设置 HuggingFace 镜像（如需要）
+export HF_ENDPOINT=https://hf-mirror.com
+
+# 或提前下载到本地缓存
+export HF_HOME=/path/to/local/cache
+```
+
+### DeepSeek 模型 GPU 内存不足
+
+#### 症状
+```
+torch.cuda.OutOfMemoryError: CUDA out of memory
+```
+
+#### 解决方案
+```bash
+# 确认 GPU 可用显存（需要约 6GB）
+nvidia-smi
+
+# 指定其他 GPU
+.venv/bin/python run_ocr.py --dataset arxivqa --gpu 1
+
+# 清理 GPU 缓存
+python -c "import torch; torch.cuda.empty_cache()"
+```
+
+### PDF 转换失败（Marker / MarkItDown）
+
+#### 症状
+```
+Error: Failed to create PDF for arxivqa_0
+```
+
+#### 解决方案
+```bash
+# 确认 Pillow 已安装
+.venv/bin/python -c "from PIL import Image; print('OK')"
+
+# 检查图像缓存目录
+ls data/benchmark_data/arxivqa_images/
+
+# 手动测试 PDF 转换
+.venv/bin/python -c "
+from scripts.utils._shared.image_utils import images_to_pdf
+images_to_pdf(['data/benchmark_data/arxivqa_images/arxivqa_0.png'], '/tmp/test.pdf')
+print('OK')
+"
+```
+
+### transformers 版本冲突
+
+DeepSeek-OCR 需要 `transformers==4.46.3`，与主项目的 vLLM 依赖不兼容。每个模型使用独立的 `.venv`：
+
+```bash
+# 不要在主项目 venv 中运行 DeepSeek 脚本
+# 始终使用模型自己的 .venv
+cd scripts/utils/deepseek_ocr_v1
+.venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
+```
+
 ## 调试技巧
 
 ### 启用详细日志

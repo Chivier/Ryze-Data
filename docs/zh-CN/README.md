@@ -14,7 +14,7 @@ Ryze-Data 是一个企业级的模块化框架，专门设计用于自动化科�
 ### 核心特性
 
 - **📚 智能网页爬取**：自动收集来自 Nature 等来源的科学文章
-- **🔍 先进的 OCR 技术**：使用 marker 引擎进行高精度文本和图像提取
+- **🔍 先进的 OCR 技术**：支持 Marker、DeepSeek-OCR v1/v2、MarkItDown 多模型 OCR，并提供独立预处理脚本
 - **⚖️ LLM 自动负载均衡**：支持多 API 密钥的智能负载均衡和自动重试
 - **📊 分块 OCR 处理**：支持大规模 PDF 批量处理
 - **🔧 灵活配置**：支持热重载的基于环境的配置
@@ -97,6 +97,13 @@ Ryze-Data/
 ├── tests/                 # 测试套件
 │   ├── unit/             # 单元测试
 │   └── integration/      # 集成测试
+├── scripts/               # 脚本工具
+│   └── utils/            # 独立 OCR 预处理脚本
+│       ├── _shared/      # 共享工具
+│       ├── deepseek_ocr_v1/
+│       ├── deepseek_ocr_v2/
+│       ├── marker/
+│       └── markitdown/
 ├── docs/                  # 文档
 │   ├── architecture.md   # 系统架构
 │   ├── configuration.md  # 配置指南

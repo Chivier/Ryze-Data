@@ -15,7 +15,7 @@ Ryze-Data is an enterprise-grade, modular framework designed to automate the com
 ### Key Features
 
 - **Intelligent Web Scraping**: Automated collection of scientific articles from Nature and other sources
-- **Multi-engine OCR**: Extensible OCR with Marker, DeepSeek-OCR v1/v2, and more
+- **Multi-engine OCR**: Extensible OCR with Marker, DeepSeek-OCR v1/v2, MarkItDown, and standalone precompute scripts
 - **LLM Request Auto Balancer**: Automatic load balancing across multiple API keys
 - **Text QA Generation**: Generate question-answer pairs from OCR markdown files
 - **Vision QA Generation**: Generate visual QA pairs from figures (LlamaFactory compatible)
@@ -73,6 +73,27 @@ uv run python -m src.cli.main generate-qa --mode both --quality-filter
 uv run python -m src.cli.main pipeline --stages scrape,ocr,qa
 ```
 
+### OCR Precompute (Standalone Scripts)
+
+Each OCR model has an isolated environment under `scripts/utils/`:
+
+```bash
+# Setup a model environment
+cd scripts/utils/markitdown && bash setup_env.sh
+
+# Run OCR on ArxivQA (5 samples)
+.venv/bin/python run_ocr.py --dataset arxivqa --max-samples 5
+
+# Run OCR on SlideVQA (all samples)
+.venv/bin/python run_ocr.py --dataset slidevqa
+
+# DeepSeek models require --gpu
+cd ../deepseek_ocr_v1 && bash setup_env.sh
+.venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
+```
+
+Output goes to `data/ocr_precompute/{model}/{dataset}/`.
+
 ### Data Inspection
 
 ```bash
@@ -109,6 +130,7 @@ Ryze-Data/
 │   │   ├── deepseek_ocr.py    # DeepSeek-OCR v1
 │   │   ├── deepseek_ocr_v2.py # DeepSeek-OCR v2
 │   │   ├── marker_ocr.py      # Marker OCR (default)
+│   │   ├── markitdown_ocr.py  # MarkItDown OCR
 │   │   └── registry.py        # OCRRegistry (model discovery)
 │   ├── chunked-ocr.py         # Legacy batch OCR processing
 │   ├── config_manager.py      # Configuration management
@@ -132,6 +154,13 @@ Ryze-Data/
 │   ├── vlm_preprocessing/    # Figure context JSON
 │   ├── sft_data/             # Text QA output
 │   └── vlm_sft_data/         # Vision QA output
+├── scripts/                   # Utility scripts
+│   └── utils/                # Standalone OCR precompute
+│       ├── _shared/          # Shared dataset loading & image utils
+│       ├── deepseek_ocr_v1/  # DeepSeek-OCR v1 standalone
+│       ├── deepseek_ocr_v2/  # DeepSeek-OCR v2 standalone
+│       ├── marker/           # Marker standalone
+│       └── markitdown/       # MarkItDown standalone
 ├── pyproject.toml            # Project configuration (uv)
 └── config.json               # Runtime configuration
 ```
@@ -233,5 +262,6 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 
 - [Marker](https://github.com/VikParuchuri/marker) - OCR engine
 - [DeepSeek-OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - Vision-based OCR models
+- [MarkItDown](https://github.com/microsoft/markitdown) - Microsoft PDF-to-Markdown conversion
 - [OpenAI](https://openai.com) - LLM APIs
 - [LlamaFactory](https://github.com/hiyouga/LLaMA-Factory) - Training framework compatibility

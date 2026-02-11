@@ -1,0 +1,6 @@
+marker-pdf
+torch
+Pillow
+pdf2image
+datasets
+tqdm

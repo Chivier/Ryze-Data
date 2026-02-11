@@ -100,7 +100,7 @@ from src.ocr import OCRRegistry
 
 # List all registered model names
 OCRRegistry.list_all()
-# ['deepseek-ocr', 'deepseek-ocr-v2', 'marker', 'markitdown', 'pdf2md']
+# ['deepseek-ocr', 'deepseek-ocr-v2', 'marker', 'markitdown']
 
 # List only models whose dependencies are installed
 OCRRegistry.list_available()
@@ -171,8 +171,7 @@ class MyOCR(BaseOCRModel):
 | `marker` | `MarkerOCR` | N/A (CLI-based) | Default. Supports multi-GPU batch via `marker_chunk_convert` |
 | `deepseek-ocr` | `DeepSeekOCRv1` | `deepseek-ai/DeepSeek-OCR` | Local inference, 640px images, `test_compress=True` |
 | `deepseek-ocr-v2` | `DeepSeekOCRv2` | `deepseek-ai/DeepSeek-OCR-2` | Local inference, 768px images |
-| `markitdown` | `MarkItDownOCR` | N/A | Stub (not yet implemented) |
-| `pdf2md` | `Pdf2MdOCR` | N/A | Stub (not yet implemented) |
+| `markitdown` | `MarkItDownOCR` | N/A | Microsoft MarkItDown PDF-to-Markdown conversion |
 
 #### DeepSeek-OCR Installation
 
@@ -621,7 +620,6 @@ Registered OCR models:
   deepseek-ocr-v2 [not installed]
   marker         [available]
   markitdown     [not installed]
-  pdf2md         [not installed]
 ```
 
 ### ocr

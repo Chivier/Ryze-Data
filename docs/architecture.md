@@ -103,10 +103,19 @@ Ryze-Data/
 │       ├── visual-data-extraction.txt
 │       └── visual-quality.txt
 │
+├── scripts/                     # 脚本工具
+│   └── utils/                   # 独立 OCR 预处理脚本
+│       ├── _shared/             # 共享工具（数据集加载、图像转 PDF）
+│       ├── deepseek_ocr_v1/     # DeepSeek-OCR v1 独立脚本
+│       ├── deepseek_ocr_v2/     # DeepSeek-OCR v2 独立脚本
+│       ├── marker/              # Marker 独立脚本
+│       └── markitdown/          # MarkItDown 独立脚本
+│
 ├── data/                        # 数据目录（git 忽略）
 │   ├── nature_metadata/         # 爬取的元数据
 │   ├── pdfs/                    # 下载的 PDF 文件
 │   ├── ocr_results/             # OCR 处理结果（Markdown）
+│   ├── ocr_precompute/          # 独立脚本 OCR 输出
 │   ├── vlm_preprocessing/       # 图表上下文 JSON
 │   ├── sft_data/                # 文本 QA 训练数据
 │   └── vlm_sft_data/            # 视觉 QA 训练数据
@@ -308,8 +317,7 @@ BaseOCRModel (ABC)
 ├── BaseDeepSeekOCR    (共享基类)
 │   ├── DeepSeekOCRv1  (deepseek-ocr,    HF: deepseek-ai/DeepSeek-OCR)
 │   └── DeepSeekOCRv2  (deepseek-ocr-v2, HF: deepseek-ai/DeepSeek-OCR-2)
-├── MarkItDownOCR      (markitdown, 存根)
-└── Pdf2MdOCR          (pdf2md, 存根)
+└── MarkItDownOCR      (markitdown)
 ```
 
 **核心机制**：
