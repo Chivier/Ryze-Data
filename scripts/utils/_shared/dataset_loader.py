@@ -27,13 +27,49 @@ class OCRSample:
     dataset: str
 
 
+def _decode_image(image):
+    """Decode an image value from HuggingFace datasets into a PIL Image.
+
+    HF datasets may return images in several forms depending on feature
+    type and decoding settings:
+      - ``PIL.Image.Image`` — already decoded.
+      - ``dict`` with ``bytes`` and/or ``path`` keys — partially decoded.
+      - ``str`` — relative path inside the dataset cache (not usable directly).
+
+    Args:
+        image: Raw image value from a dataset row.
+
+    Returns:
+        PIL Image, or None if decoding fails.
+    """
+    import io
+
+    from PIL import Image
+
+    if isinstance(image, Image.Image):
+        return image
+
+    if isinstance(image, dict):
+        # HF dict format: {"bytes": b"...", "path": "..."}
+        if image.get("bytes"):
+            return Image.open(io.BytesIO(image["bytes"]))
+        path = image.get("path")
+        if path and Path(path).exists():
+            return Image.open(path)
+
+    return None
+
+
 def load_arxivqa(
     cache_dir: str,
     max_samples: int = 0,
 ) -> Iterator[OCRSample]:
     """Load ArxivQA dataset and yield OCRSample objects.
 
-    Each sample has a single figure image.
+    Each sample has a single figure image.  The ``image`` column is
+    explicitly cast to ``datasets.Image(decode=True)`` so that string
+    paths stored inside the dataset are resolved and decoded to PIL
+    Images automatically.
 
     Args:
         cache_dir: Directory for caching extracted images.
@@ -42,12 +78,18 @@ def load_arxivqa(
     Yields:
         OCRSample for each dataset item.
     """
+    from datasets import Image as HFImage
     from datasets import load_dataset
-    from PIL import Image
 
     logger.info("Loading ArxivQA dataset...")
     dataset = load_dataset("MMInstruction/ArxivQA", split="train")
     logger.info("ArxivQA: %d total samples", len(dataset))
+
+    # Force image column to be decoded as PIL Images.
+    # Without this, some datasets return raw string paths that point
+    # into the HF cache and are not usable directly.
+    if "image" in dataset.column_names:
+        dataset = dataset.cast_column("image", HFImage(decode=True))
 
     if max_samples > 0:
         dataset = dataset.select(range(min(max_samples, len(dataset))))
@@ -59,27 +101,13 @@ def load_arxivqa(
         sample_id = f"arxivqa_{idx}"
         image_path = str(image_dir / f"{sample_id}.png")
 
-        # Extract image (may be PIL Image or string path)
-        image = item.get("image")
-        if image is not None and not Path(image_path).exists():
-            if isinstance(image, str):
-                # String path — copy or symlink
-                import shutil
-
-                if Path(image).exists():
-                    shutil.copy2(image, image_path)
-                else:
-                    logger.warning("Image path not found for %s: %s", sample_id, image)
-                    continue
-            elif isinstance(image, Image.Image):
-                image.save(image_path)
-            else:
-                logger.warning("Unknown image type for %s: %s", sample_id, type(image))
-                continue
-
         if not Path(image_path).exists():
-            logger.warning("Skipping %s: image not found at %s", sample_id, image_path)
-            continue
+            image = item.get("image")
+            pil_image = _decode_image(image)
+            if pil_image is None:
+                logger.warning("Skipping %s: could not decode image", sample_id)
+                continue
+            pil_image.save(image_path)
 
         yield OCRSample(
             sample_id=sample_id,
@@ -94,7 +122,8 @@ def load_slidevqa(
 ) -> Iterator[OCRSample]:
     """Load SlideVQA dataset and yield OCRSample objects.
 
-    Each sample has multiple slide images.
+    Each sample has multiple slide images.  Image columns are cast to
+    ``datasets.Image(decode=True)`` to guarantee PIL decoding.
 
     Args:
         cache_dir: Directory for caching extracted images.
@@ -103,11 +132,20 @@ def load_slidevqa(
     Yields:
         OCRSample for each dataset item.
     """
+    from datasets import Image as HFImage
     from datasets import load_dataset
 
     logger.info("Loading SlideVQA dataset...")
     dataset = load_dataset("NTT-hil-insight/SlideVQA", split="test")
     logger.info("SlideVQA: %d total samples", len(dataset))
+
+    # Force all image columns to be decoded as PIL Images.
+    for col in dataset.column_names:
+        if col in ("image", "images") or col.startswith("page_"):
+            try:
+                dataset = dataset.cast_column(col, HFImage(decode=True))
+            except Exception:
+                pass  # Column may not be an image type
 
     if max_samples > 0:
         dataset = dataset.select(range(min(max_samples, len(dataset))))
@@ -129,7 +167,11 @@ def load_slidevqa(
         for img_idx, image in enumerate(images):
             img_path = str(image_dir / f"{sample_id}_slide_{img_idx}.png")
             if not Path(img_path).exists():
-                image.save(img_path)
+                pil_image = _decode_image(image)
+                if pil_image is None:
+                    logger.warning("Skipping %s slide %d: could not decode image", sample_id, img_idx)
+                    continue
+                pil_image.save(img_path)
             image_paths.append(img_path)
 
         if not image_paths:
