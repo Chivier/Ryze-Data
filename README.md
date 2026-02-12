@@ -87,6 +87,10 @@ cd scripts/utils/markitdown && bash setup_env.sh
 # Run OCR on SlideVQA (all samples)
 .venv/bin/python run_ocr.py --dataset slidevqa
 
+# Marker supports pipelined workers and optional GPU selection
+cd ../marker && bash setup_env.sh
+.venv/bin/python run_ocr.py --dataset arxivqa --workers 4 --gpu cpu
+
 # DeepSeek models require --gpu
 cd ../deepseek_ocr_v1 && bash setup_env.sh
 .venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
@@ -260,7 +264,7 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 
 ## Acknowledgments
 
-- [Marker](https://github.com/VikParuchuri/marker) - OCR engine
+- [Marker](https://github.com/datalab-to/marker) - OCR engine
 - [DeepSeek-OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - Vision-based OCR models
 - [MarkItDown](https://github.com/microsoft/markitdown) - Microsoft PDF-to-Markdown conversion
 - [OpenAI](https://openai.com) - LLM APIs

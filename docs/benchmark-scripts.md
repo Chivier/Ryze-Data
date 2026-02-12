@@ -81,7 +81,7 @@ uv sync --extra deepseek-ocr    # DeepSeek v1/v2 (torch + transformers)
 uv sync --extra markitdown       # MarkItDown
 ```
 
-Marker 需要独立安装，参考 [Marker 官方文档](https://github.com/VikParuchuri/marker)。
+Marker 需要独立安装，参考 [Marker 官方文档](https://github.com/datalab-to/marker)。
 
 ## 2. 一键运行（推荐）
 
@@ -384,15 +384,19 @@ cd scripts/utils/markitdown && bash setup_env.sh
 # 2. 快速测试（5 个样本）
 .venv/bin/python run_ocr.py --dataset arxivqa --max-samples 5
 
-# 3. 检查输出
+# 3. Marker（流水线并行）
+cd ../marker && bash setup_env.sh
+.venv/bin/python run_ocr.py --dataset arxivqa --workers 4 --gpu cpu
+
+# 4. 检查输出
 ls data/ocr_precompute/markitdown/arxivqa/
 
-# 4. 完整运行
+# 5. 完整运行
 .venv/bin/python run_ocr.py --dataset arxivqa
 .venv/bin/python run_ocr.py --dataset slidevqa
 ```
 
-### CLI 参数
+### 通用 CLI 参数
 
 | 参数 | 默认值 | 说明 |
 |------|--------|------|
@@ -400,7 +404,16 @@ ls data/ocr_precompute/markitdown/arxivqa/
 | `--output-dir` | `data/ocr_precompute/{model}/{dataset}` | 输出目录 |
 | `--cache-dir` | `data/benchmark_data` | 共享图像缓存 |
 | `--max-samples` | `0`（全部） | 最大样本数 |
-| `--gpu` | `0` | GPU ID（仅 DeepSeek） |
+| `--hf-endpoint` | 未设置 | HuggingFace 镜像地址（如 `https://hf-mirror.com`） |
+
+### 模型专有参数
+
+| 模型 | 参数 | 默认值 | 说明 |
+|------|------|--------|------|
+| Marker | `--workers` | `0` | 流水线并行 worker 数量（`0`=自动） |
+| Marker | `--gpu` | 未设置 | 设置 `CUDA_VISIBLE_DEVICES`（如 `0`、`0,1` 或 `cpu`） |
+| DeepSeek v1/v2 | `--gpu` | `0` | GPU ID |
+| DeepSeek v1/v2 | `--backend` | `transformers` | 推理后端：`auto`/`vllm`/`transformers` |
 
 ### 输出结构
 

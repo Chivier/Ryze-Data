@@ -260,7 +260,7 @@ pylint src/
 
 ## 🙏 致谢
 
-- [Marker](https://github.com/VikParuchuri/marker) - OCR 引擎
+- [Marker](https://github.com/datalab-to/marker) - OCR 引擎
 - [OpenAI](https://openai.com) - LLM API
 - [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/) - 网页爬取
 - 所有贡献者和用户

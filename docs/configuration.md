@@ -327,6 +327,10 @@ cd scripts/utils/markitdown && bash setup_env.sh
 # 运行 OCR（ArxivQA，5 个样本）
 .venv/bin/python run_ocr.py --dataset arxivqa --max-samples 5
 
+# Marker 支持流水线并行和 GPU 选择
+cd ../marker && bash setup_env.sh
+.venv/bin/python run_ocr.py --dataset arxivqa --workers 4 --gpu cpu
+
 # DeepSeek 模型需要指定 GPU
 cd ../deepseek_ocr_v1 && bash setup_env.sh
 .venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
@@ -340,7 +344,16 @@ cd ../deepseek_ocr_v1 && bash setup_env.sh
 | `--output-dir` | `data/ocr_precompute/{model}/{dataset}` | 输出目录 |
 | `--cache-dir` | `data/benchmark_data` | 共享图像缓存目录 |
 | `--max-samples` | `0`（全部） | 最大样本数 |
-| `--gpu` | `0` | GPU 设备 ID（仅 DeepSeek） |
+| `--hf-endpoint` | 未设置 | HuggingFace 镜像地址（如 `https://hf-mirror.com`） |
+
+**模型专有参数：**
+
+| 模型 | 参数 | 默认值 | 说明 |
+|------|------|--------|------|
+| Marker | `--workers` | `0` | 流水线并行 worker 数量（`0`=自动） |
+| Marker | `--gpu` | 未设置 | 设置 `CUDA_VISIBLE_DEVICES`（如 `0`、`0,1` 或 `cpu`） |
+| DeepSeek v1/v2 | `--gpu` | `0` | GPU 设备 ID |
+| DeepSeek v1/v2 | `--backend` | `transformers` | 推理后端：`auto`/`vllm`/`transformers` |
 
 ### 7. 分布式处理配置
 
