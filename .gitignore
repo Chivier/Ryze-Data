@@ -220,4 +220,5 @@ __marimo__/
 scripts/utils/*/.venv/
 .venv-ocr/
 .hf_cache/
-data/
+data/*
+!data/id_mappings/
