@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import logging
+import os
 import sys
 import time
 from pathlib import Path
@@ -24,6 +25,44 @@ from _shared.image_utils import images_to_pdf
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = "markitdown"
+
+
+def _pick_writable_cache_root(primary: Path) -> Path:
+    """Pick a writable cache root, with safe fallbacks."""
+    candidates = [
+        primary,
+        Path(__file__).resolve().parent / ".cache",
+        Path("/tmp/markitdown_cache"),
+    ]
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            probe = candidate / ".write_probe"
+            probe.write_text("ok", encoding="utf-8")
+            probe.unlink()
+            return candidate
+        except OSError:
+            continue
+    raise PermissionError(
+        f"No writable cache directory available. Tried: {', '.join(str(p) for p in candidates)}"
+    )
+
+
+def configure_cache_env(cache_dir: Path) -> None:
+    """Route third-party caches into the project cache directory."""
+    third_party_cache = _pick_writable_cache_root(cache_dir / "third_party_cache")
+    env_defaults = {
+        "XDG_CACHE_HOME": str(third_party_cache),
+        "HF_HOME": str(third_party_cache / "huggingface"),
+        "HF_HUB_CACHE": str(third_party_cache / "huggingface" / "hub"),
+        "HF_DATASETS_CACHE": str(third_party_cache / "huggingface" / "datasets"),
+        "TORCH_HOME": str(third_party_cache / "torch"),
+    }
+
+    for env_name, env_value in env_defaults.items():
+        if env_name not in os.environ:
+            os.environ[env_name] = env_value
+            Path(env_value).mkdir(parents=True, exist_ok=True)
 
 
 def process_sample(
@@ -76,7 +115,7 @@ def process_sample(
         return False
 
 
-def main():
+def main() -> int:
     parser = argparse.ArgumentParser(description="Run MarkItDown OCR on HF datasets")
     parser.add_argument(
         "--dataset",
@@ -100,6 +139,11 @@ def main():
         default=0,
         help="Max samples to process (0=all)",
     )
+    parser.add_argument(
+        "--hf-endpoint",
+        default=None,
+        help="Optional HuggingFace endpoint, e.g. https://hf-mirror.com",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -107,9 +151,14 @@ def main():
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
+    if args.hf_endpoint:
+        os.environ["HF_ENDPOINT"] = args.hf_endpoint
+        logger.info("Using HuggingFace endpoint: %s", args.hf_endpoint)
+
     # Resolve paths relative to project root
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     cache_dir = (project_root / args.cache_dir).resolve()
+    configure_cache_env(cache_dir)
 
     if args.output_dir:
         output_dir = Path(args.output_dir).resolve()
@@ -127,20 +176,27 @@ def main():
     skipped = 0
     start_time = time.time()
 
-    for sample in load_dataset_samples(args.dataset, str(cache_dir), args.max_samples):
-        md_path = output_dir / sample.sample_id / f"{sample.sample_id}.md"
-        if md_path.exists():
-            skipped += 1
-            continue
+    try:
+        for sample in load_dataset_samples(args.dataset, str(cache_dir), args.max_samples):
+            md_path = output_dir / sample.sample_id / f"{sample.sample_id}.md"
+            if md_path.exists():
+                skipped += 1
+                continue
 
-        ok = process_sample(sample.sample_id, sample.image_paths, output_dir, pdf_cache_dir)
-        if ok:
-            success += 1
-        else:
-            failed += 1
+            ok = process_sample(sample.sample_id, sample.image_paths, output_dir, pdf_cache_dir)
+            if ok:
+                success += 1
+            else:
+                failed += 1
 
-        if (success + failed) % 50 == 0:
-            logger.info("Progress: %d success, %d failed, %d skipped", success, failed, skipped)
+            if (success + failed) % 50 == 0:
+                logger.info("Progress: %d success, %d failed, %d skipped", success, failed, skipped)
+    except Exception as e:
+        logger.error("Dataset loading failed: %s", e)
+        logger.error(
+            "If HuggingFace is unreachable, retry with --hf-endpoint https://hf-mirror.com"
+        )
+        return 1
 
     elapsed = time.time() - start_time
     logger.info(
@@ -150,7 +206,8 @@ def main():
         failed,
         skipped,
     )
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

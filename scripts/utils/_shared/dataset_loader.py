@@ -5,6 +5,7 @@ cached image paths for downstream OCR processing.
 """
 
 import logging
+import tarfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterator
@@ -30,11 +31,10 @@ class OCRSample:
 def _decode_image(image):
     """Decode an image value from HuggingFace datasets into a PIL Image.
 
-    HF datasets may return images in several forms depending on feature
-    type and decoding settings:
-      - ``PIL.Image.Image`` — already decoded.
-      - ``dict`` with ``bytes`` and/or ``path`` keys — partially decoded.
-      - ``str`` — relative path inside the dataset cache (not usable directly).
+    Handles the forms returned by HF datasets:
+      - ``PIL.Image.Image`` — already decoded (e.g. SlideVQA page_N cols).
+      - ``dict`` with ``bytes`` and/or ``path`` keys.
+      - ``str`` — absolute file path.
 
     Args:
         image: Raw image value from a dataset row.
@@ -50,14 +50,78 @@ def _decode_image(image):
         return image
 
     if isinstance(image, dict):
-        # HF dict format: {"bytes": b"...", "path": "..."}
-        if image.get("bytes"):
-            return Image.open(io.BytesIO(image["bytes"]))
+        raw = image.get("bytes")
+        if raw:
+            return Image.open(io.BytesIO(raw))
         path = image.get("path")
-        if path and Path(path).exists():
+        if path and Path(path).is_absolute() and Path(path).exists():
             return Image.open(path)
 
+    if isinstance(image, str) and Path(image).is_absolute() and Path(image).exists():
+        from PIL import Image
+
+        return Image.open(image)
+
     return None
+
+
+def _find_images_tgz() -> Path | None:
+    """Find images.tgz in the HuggingFace hub cache for ArxivQA."""
+    hub_dir = (
+        Path.home()
+        / ".cache"
+        / "huggingface"
+        / "hub"
+        / "datasets--MMInstruction--ArxivQA"
+        / "snapshots"
+    )
+    if not hub_dir.exists():
+        return None
+    for snap in hub_dir.iterdir():
+        tgz = snap / "images.tgz"
+        if tgz.exists():
+            return tgz.resolve()
+    return None
+
+
+def _ensure_arxivqa_images(cache_dir: str) -> Path:
+    """Ensure ArxivQA raw images are extracted and return the base directory.
+
+    The ArxivQA dataset stores image paths as relative strings
+    (e.g. ``images/1501.00713_1.jpg``).  The actual images come from
+    ``images.tgz`` which is downloaded by HuggingFace but not
+    auto-extracted.
+
+    This function checks for extracted images in ``{cache_dir}/arxivqa_raw_images/``
+    and extracts ``images.tgz`` from the HF hub cache if needed.
+
+    Returns:
+        Path to the base directory such that ``base / item["image"]``
+        resolves to the actual image file.
+    """
+    raw_dir = Path(cache_dir) / "arxivqa_raw_images"
+    images_subdir = raw_dir / "images"
+
+    if images_subdir.exists() and any(images_subdir.iterdir()):
+        return raw_dir
+
+    tgz_path = _find_images_tgz()
+    if tgz_path is None:
+        raise FileNotFoundError(
+            "ArxivQA images.tgz not found in HuggingFace cache. "
+            "Run `load_dataset('MMInstruction/ArxivQA')` first to download it, "
+            "or manually place images.tgz in the HF hub cache."
+        )
+
+    logger.info(
+        "Extracting ArxivQA images.tgz → %s (one-time, may take a few minutes)...",
+        raw_dir,
+    )
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(str(tgz_path), "r:gz") as tar:
+        tar.extractall(str(raw_dir))
+    logger.info("Extraction complete — %d files", sum(1 for _ in images_subdir.iterdir()))
+    return raw_dir
 
 
 def load_arxivqa(
@@ -66,10 +130,11 @@ def load_arxivqa(
 ) -> Iterator[OCRSample]:
     """Load ArxivQA dataset and yield OCRSample objects.
 
-    Each sample has a single figure image.  The ``image`` column is
-    explicitly cast to ``datasets.Image(decode=True)`` so that string
-    paths stored inside the dataset are resolved and decoded to PIL
-    Images automatically.
+    The ``image`` column in ArxivQA is a plain string (e.g.
+    ``images/1501.00713_1.jpg``), **not** an HF ``Image`` feature.
+    The actual image files come from ``images.tgz`` which is downloaded
+    by HuggingFace but not auto-extracted.  This function extracts it
+    on first run and resolves the paths.
 
     Args:
         cache_dir: Directory for caching extracted images.
@@ -78,18 +143,14 @@ def load_arxivqa(
     Yields:
         OCRSample for each dataset item.
     """
-    from datasets import Image as HFImage
     from datasets import load_dataset
 
     logger.info("Loading ArxivQA dataset...")
     dataset = load_dataset("MMInstruction/ArxivQA", split="train")
     logger.info("ArxivQA: %d total samples", len(dataset))
 
-    # Force image column to be decoded as PIL Images.
-    # Without this, some datasets return raw string paths that point
-    # into the HF cache and are not usable directly.
-    if "image" in dataset.column_names:
-        dataset = dataset.cast_column("image", HFImage(decode=True))
+    # Ensure the raw images from images.tgz are available.
+    raw_images_base = _ensure_arxivqa_images(cache_dir)
 
     if max_samples > 0:
         dataset = dataset.select(range(min(max_samples, len(dataset))))
@@ -97,16 +158,32 @@ def load_arxivqa(
     image_dir = Path(cache_dir) / "arxivqa_images"
     image_dir.mkdir(parents=True, exist_ok=True)
 
+    from PIL import Image
+
     for idx, item in enumerate(dataset):
         sample_id = f"arxivqa_{idx}"
         image_path = str(image_dir / f"{sample_id}.png")
 
         if not Path(image_path).exists():
-            image = item.get("image")
-            pil_image = _decode_image(image)
-            if pil_image is None:
-                logger.warning("Skipping %s: could not decode image", sample_id)
+            image_val = item.get("image")
+            if image_val is None:
+                logger.warning("Skipping %s: no image field", sample_id)
                 continue
+
+            # image_val is a string like "images/1501.00713_1.jpg"
+            if isinstance(image_val, str):
+                src = raw_images_base / image_val
+                if not src.exists():
+                    logger.warning("Skipping %s: image not found at %s", sample_id, src)
+                    continue
+                pil_image = Image.open(str(src))
+            else:
+                # Fallback for other types (PIL Image, dict, etc.)
+                pil_image = _decode_image(image_val)
+                if pil_image is None:
+                    logger.warning("Skipping %s: could not decode image", sample_id)
+                    continue
+
             pil_image.save(image_path)
 
         yield OCRSample(
@@ -122,8 +199,9 @@ def load_slidevqa(
 ) -> Iterator[OCRSample]:
     """Load SlideVQA dataset and yield OCRSample objects.
 
-    Each sample has multiple slide images.  Image columns are cast to
-    ``datasets.Image(decode=True)`` to guarantee PIL decoding.
+    Each sample has multiple slide images stored as HF ``Image``
+    features (``page_1`` .. ``page_20``).  The default loading
+    behaviour decodes them to PIL Images automatically.
 
     Args:
         cache_dir: Directory for caching extracted images.
@@ -132,20 +210,11 @@ def load_slidevqa(
     Yields:
         OCRSample for each dataset item.
     """
-    from datasets import Image as HFImage
     from datasets import load_dataset
 
     logger.info("Loading SlideVQA dataset...")
     dataset = load_dataset("NTT-hil-insight/SlideVQA", split="test")
     logger.info("SlideVQA: %d total samples", len(dataset))
-
-    # Force all image columns to be decoded as PIL Images.
-    for col in dataset.column_names:
-        if col in ("image", "images") or col.startswith("page_"):
-            try:
-                dataset = dataset.cast_column(col, HFImage(decode=True))
-            except Exception:
-                pass  # Column may not be an image type
 
     if max_samples > 0:
         dataset = dataset.select(range(min(max_samples, len(dataset))))

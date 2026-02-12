@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Setup isolated venv for DeepSeek-OCR v1.
-# Requires transformers==4.46.3 (incompatible with main venv).
+# Uses transformers backend by default (optional vLLM backend in script).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,3 +18,4 @@ uv pip install -r requirements.txt --python .venv/bin/python
 
 echo "=== Setup complete ==="
 echo "Run OCR with: .venv/bin/python run_ocr.py --dataset arxivqa --gpu 0"
+echo "Optional backend flag: --backend transformers|auto|vllm"
