@@ -168,17 +168,62 @@ python scripts/run_custom_inference.py \
     --concurrency 32
 ```
 
+### Using a public API (OpenAI-compatible)
+
+The script works with any OpenAI-compatible endpoint. Pass the API key via
+`--api-key` or set an environment variable (`$OPENAI_API_KEY` or `$API_KEY`).
+
+```bash
+# Option 1: pass key directly
+python scripts/run_custom_inference.py \
+    --dataset arxivqa \
+    --experiment baseline \
+    --endpoints https://api.openai.com/v1 \
+    --model gpt-4o \
+    --api-key sk-xxxxxxxxxxxx
+
+# Option 2: use environment variable (recommended — keeps key out of shell history)
+export OPENAI_API_KEY="sk-xxxxxxxxxxxx"
+python scripts/run_custom_inference.py \
+    --dataset arxivqa \
+    --experiment baseline \
+    --endpoints https://api.openai.com/v1 \
+    --model gpt-4o
+
+# Option 3: other OpenAI-compatible providers
+export API_KEY="your-key-here"
+python scripts/run_custom_inference.py \
+    --dataset slidevqa \
+    --experiment baseline \
+    --endpoints https://api.deepseek.com/v1 \
+    --model deepseek-chat
+
+# SiliconFlow, Together AI, etc. — same pattern
+python scripts/run_custom_inference.py \
+    --dataset arxivqa \
+    --experiment baseline \
+    --endpoints https://api.siliconflow.cn/v1 \
+    --model Qwen/Qwen2.5-VL-72B-Instruct \
+    --api-key "$SILICONFLOW_API_KEY"
+```
+
+**API key resolution order:** `--api-key` flag > `$OPENAI_API_KEY` > `$API_KEY` > `"EMPTY"` (local vLLM).
+
 ## Key Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--dataset` | *(required)* | `arxivqa` or `slidevqa` |
 | `--experiment` | *(required)* | `baseline`, `baseline1`, `baseline2`, `baseline3`, `us` |
-| `--endpoints` | `localhost:8000/v1` | Comma-separated vLLM API URLs |
+| `--endpoints` | `localhost:8000/v1` | Comma-separated OpenAI-compatible API base URLs |
+| `--model` | `Qwen3-VL-8B` | Model name passed in API requests |
+| `--api-key` | `$OPENAI_API_KEY` / `$API_KEY` / `EMPTY` | API key for authentication |
 | `--max-samples` | `0` (all) | Limit number of samples to process |
 | `--concurrency` | `16` | Parallel request threads |
 | `--max-tokens` | `512` | Fallback max tokens (ArxivQA overrides to 32) |
 | `--temperature` | `0.0` | Sampling temperature |
+| `--timeout` | `120.0` | Per-request timeout in seconds |
+| `--max-retries` | `2` | Retries on failure (cycles through endpoints) |
 | `--allow-missing-ocr` | off | Skip samples with missing OCR instead of failing |
 
 ## Output

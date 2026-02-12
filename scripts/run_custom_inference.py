@@ -30,6 +30,7 @@ from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import sys
@@ -47,15 +48,20 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Sample dataclass
+# Sample dataclass  (metadata only — no PDF rendering at load time)
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
 class Sample:
-    """A single inference sample loaded from the id_mapping JSON."""
+    """A single inference sample loaded from the id_mapping JSON.
+
+    PDF rendering is deferred; ``pdf_path`` and ``evidence_pages`` are kept
+    so images can be rendered lazily right before inference.
+    """
 
     sample_id: str
-    image_paths: list[str]
+    pdf_path: str
+    evidence_pages: list[int] | None  # 1-based pages for SlideVQA, None for ArxivQA
     question: str
     choices: Optional[list[str]]
     reference: str
@@ -215,7 +221,7 @@ def process_sample(
 
 
 # ---------------------------------------------------------------------------
-# PDF → PNG rendering
+# PDF → PNG rendering  (lazy, with on-disk cache)
 # ---------------------------------------------------------------------------
 
 def _render_pdf_pages(
@@ -288,54 +294,42 @@ def _render_pdf_pages(
 
 
 # ---------------------------------------------------------------------------
-# Dataset loading from id_mapping JSON + PDF
+# Dataset loading from id_mapping JSON  (metadata only, no rendering)
 # ---------------------------------------------------------------------------
 
 def load_samples_from_mapping(
     dataset_name: str,
     mapping_path: Path,
     pdf_dir: Path,
-    image_cache_dir: Path,
     max_samples: int = 0,
 ) -> list[Sample]:
-    """Load samples from an id_mapping JSON and render images from PDFs.
+    """Load sample metadata from an id_mapping JSON.
 
-    ArxivQA: ``{pdf_dir}/arxivqa_0.pdf`` → full page PNG.
-
-    SlideVQA: ``{pdf_dir}/slidevqa_0.pdf`` → extract ``evidence_pages``
-    (1-based page numbers) to individual PNGs.
+    No PDF rendering happens here — images are rendered lazily at inference
+    time so the script starts quickly even with large datasets.
     """
     raw = json.loads(mapping_path.read_text(encoding="utf-8"))
     samples: list[Sample] = []
+    num_pdf_missing = 0
+    num_no_evidence = 0
 
     for sample_id, item in raw.items():
         pdf_path = pdf_dir / f"{sample_id}.pdf"
         if not pdf_path.exists():
-            logger.warning("Skipping %s: PDF not found at %s", sample_id, pdf_path)
+            num_pdf_missing += 1
             continue
 
         if dataset_name == "arxivqa":
-            image_paths = _render_pdf_pages(
-                pdf_path=pdf_path,
-                pages=None,
-                cache_dir=image_cache_dir,
-                sample_id=sample_id,
-            )
             question = item.get("question", "")
             choices = item.get("options")
             reference = str(item.get("label", ""))
             question_type = "multiple_choice"
+            evidence_pages = None
         elif dataset_name == "slidevqa":
-            evidence = item.get("evidence_pages")
-            if not evidence:
-                logger.warning("Skipping %s: no evidence_pages in mapping", sample_id)
+            evidence_pages = item.get("evidence_pages")
+            if not evidence_pages:
+                num_no_evidence += 1
                 continue
-            image_paths = _render_pdf_pages(
-                pdf_path=pdf_path,
-                pages=evidence,
-                cache_dir=image_cache_dir,
-                sample_id=sample_id,
-            )
             question = item.get("question", "")
             choices = None
             reference = str(item.get("answer", ""))
@@ -343,14 +337,11 @@ def load_samples_from_mapping(
         else:
             raise ValueError(f"Unknown dataset: {dataset_name}")
 
-        if not image_paths:
-            logger.warning("Skipping %s: no images rendered from PDF", sample_id)
-            continue
-
         samples.append(
             Sample(
                 sample_id=sample_id,
-                image_paths=image_paths,
+                pdf_path=str(pdf_path),
+                evidence_pages=evidence_pages,
                 question=question,
                 choices=choices,
                 reference=reference,
@@ -362,11 +353,21 @@ def load_samples_from_mapping(
         if max_samples > 0 and len(samples) >= max_samples:
             break
 
+    if num_pdf_missing:
+        logger.warning(
+            "Skipped %d / %d entries: PDF not found in %s",
+            num_pdf_missing, len(raw), pdf_dir,
+        )
+    if num_no_evidence:
+        logger.warning(
+            "Skipped %d entries: no evidence_pages in mapping", num_no_evidence,
+        )
+
     return samples
 
 
 # ---------------------------------------------------------------------------
-# Infrastructure (normally no need to modify below)
+# Infrastructure
 # ---------------------------------------------------------------------------
 
 def _read_endpoint_file(path: Path) -> list[str]:
@@ -428,18 +429,6 @@ def _append_result(
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-def _infer_one(
-    pool: VLLMClientPool,
-    request: InferenceRequest,
-) -> str:
-    kwargs: dict[str, Any] = {}
-    if request.max_tokens is not None:
-        kwargs["max_tokens"] = request.max_tokens
-    if request.response_format is not None:
-        kwargs["response_format"] = request.response_format
-    return pool.chat(messages=request.messages, **kwargs).strip()
-
-
 def _normalize_reference(reference: str, question_type: str) -> str:
     """Normalize reference for storage: extract letter for MC questions."""
     if question_type == "multiple_choice":
@@ -447,11 +436,71 @@ def _normalize_reference(reference: str, question_type: str) -> str:
     return reference
 
 
+def _process_one(
+    sample: Sample,
+    pool: VLLMClientPool,
+    ocr_dir: Optional[Path],
+    image_cache_dir: Path,
+    experiment: str,
+    fail_on_missing_ocr: bool,
+) -> tuple[str, str, str | None]:
+    """Render images, build prompt, run inference for a single sample.
+
+    Returns:
+        ``(raw_answer, status, error_message)`` where *status* is one of
+        ``"ok"``, ``"render_failed"``, ``"missing_ocr"``.
+    """
+    # 1. Render PDF → PNG (cached on disk, cheap if already rendered)
+    image_paths = _render_pdf_pages(
+        pdf_path=Path(sample.pdf_path),
+        pages=sample.evidence_pages,
+        cache_dir=image_cache_dir,
+        sample_id=sample.sample_id,
+    )
+    if not image_paths:
+        return "", "render_failed", "no images rendered from PDF"
+
+    # 2. Read OCR markdown (if applicable)
+    ocr_markdown: Optional[str] = None
+    if experiment != "baseline":
+        if ocr_dir is None:
+            raise ValueError(f"OCR directory is required for experiment '{experiment}'.")
+        ocr_markdown = read_ocr_markdown(ocr_dir=ocr_dir, sample_id=sample.sample_id)
+        if ocr_markdown is None:
+            if fail_on_missing_ocr:
+                raise FileNotFoundError(
+                    f"Missing OCR markdown for {sample.sample_id} in {ocr_dir}"
+                )
+            return "", "missing_ocr", None
+
+    # 3. Build prompt
+    request = process_sample(
+        sample_id=sample.sample_id,
+        image_paths=image_paths,
+        ocr_markdown=ocr_markdown,
+        question=sample.question,
+        choices=sample.choices,
+        reference=sample.reference,
+        question_type=sample.question_type,
+    )
+
+    # 4. Call API
+    kwargs: dict[str, Any] = {}
+    if request.max_tokens is not None:
+        kwargs["max_tokens"] = request.max_tokens
+    if request.response_format is not None:
+        kwargs["response_format"] = request.response_format
+    raw_answer = pool.chat(messages=request.messages, **kwargs).strip()
+
+    return raw_answer, "ok", None
+
+
 def _run(
     *,
     experiment: str,
     samples: list[Sample],
     ocr_dir: Optional[Path],
+    image_cache_dir: Path,
     pool: VLLMClientPool,
     output_dir: Path,
     fail_on_missing_ocr: bool,
@@ -461,75 +510,60 @@ def _run(
     results_path = exp_dir / "results.jsonl"
     cached = _load_result_cache(results_path)
 
+    # Filter to pending samples (not already in cache).
+    pending = [s for s in samples if s.sample_id not in cached]
     num_cached = len(cached)
-    num_missing_ocr = 0
-    pending: list[tuple[Sample, InferenceRequest]] = []
-
-    for sample in samples:
-        if sample.sample_id in cached:
-            continue
-
-        ocr_markdown: Optional[str] = None
-        if experiment != "baseline":
-            if ocr_dir is None:
-                raise ValueError(f"OCR directory is required for experiment '{experiment}'.")
-            ocr_markdown = read_ocr_markdown(ocr_dir=ocr_dir, sample_id=sample.sample_id)
-            if ocr_markdown is None:
-                if fail_on_missing_ocr:
-                    raise FileNotFoundError(
-                        f"Missing OCR markdown for {sample.sample_id} in {ocr_dir}"
-                    )
-                num_missing_ocr += 1
-                _append_result(
-                    path=results_path,
-                    sample=sample,
-                    answer="",
-                    reference=_normalize_reference(sample.reference, sample.question_type),
-                )
-                continue
-
-        request = process_sample(
-            sample_id=sample.sample_id,
-            image_paths=sample.image_paths,
-            ocr_markdown=ocr_markdown,
-            question=sample.question,
-            choices=sample.choices,
-            reference=sample.reference,
-            question_type=sample.question_type,
-        )
-        pending.append((sample, request))
 
     logger.info(
-        "Experiment %s: %d cached, %d pending, %d missing OCR",
+        "Experiment %s: %d cached, %d pending",
         experiment,
         num_cached,
         len(pending),
-        num_missing_ocr,
     )
 
     if not pending:
         return
 
+    num_missing_ocr = 0
+    num_render_failed = 0
+    completed = 0
+
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
-        future_map: dict[Future[str], Sample] = {}
-        for sample, request in pending:
-            future = executor.submit(_infer_one, pool, request)
+        future_map: dict[Future[tuple[str, str, str | None]], Sample] = {}
+        for sample in pending:
+            future = executor.submit(
+                _process_one,
+                sample,
+                pool,
+                ocr_dir,
+                image_cache_dir,
+                experiment,
+                fail_on_missing_ocr,
+            )
             future_map[future] = sample
 
-        completed = 0
         for future in as_completed(future_map):
             sample = future_map[future]
             raw_answer = ""
             answer = ""
             try:
-                raw_answer = future.result()
-                answer = postprocess_answer(raw_answer, sample.question_type)
+                raw_answer, status, err_msg = future.result()
+
+                if status == "render_failed":
+                    num_render_failed += 1
+                    logger.warning(
+                        "Skipping %s: %s", sample.sample_id, err_msg,
+                    )
+                elif status == "missing_ocr":
+                    num_missing_ocr += 1
+                else:
+                    answer = postprocess_answer(raw_answer, sample.question_type)
+
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
-                    "Inference failed: sample=%s error=%s",
-                    sample.sample_id,
-                    exc,
+                    "Failed: sample=%s error=%s", sample.sample_id, exc,
                 )
+
             _append_result(
                 path=results_path,
                 sample=sample,
@@ -542,15 +576,31 @@ def _run(
                 logger.info("Progress: %d/%d", completed, len(pending))
 
     logger.info(
-        "Done — %d new, %d cached, %d missing OCR. Results: %s",
-        len(pending),
+        "Done — %d new, %d cached, %d render-failed, %d missing OCR. Results: %s",
+        completed,
         num_cached,
+        num_render_failed,
         num_missing_ocr,
         results_path,
     )
 
 
+def _load_dotenv() -> None:
+    """Load ``.env`` from project root (if present) into ``os.environ``."""
+    env_path = PROJECT_ROOT / ".env"
+    if not env_path.exists():
+        return
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(env_path, override=False)
+    except ImportError:
+        pass
+
+
 def _parse_args() -> argparse.Namespace:
+    # Load .env BEFORE argparse so env-var defaults pick up .env values.
+    _load_dotenv()
+
     parser = argparse.ArgumentParser(
         description="Custom inference runner with user-defined prompt processing"
     )
@@ -580,13 +630,25 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", default="data/custom_inference")
     parser.add_argument("--max-samples", type=int, default=0)
 
-    parser.add_argument("--endpoints", default=None, help="Comma-separated API base URLs")
+    parser.add_argument(
+        "--endpoints",
+        default=os.environ.get("OPENAI_BASE_URL"),
+        help="Comma-separated API base URLs (default: $OPENAI_BASE_URL, then endpoints-file)",
+    )
     parser.add_argument(
         "--endpoints-file",
         default="logs/benchmark/latest/vllm_pool_endpoints.txt",
     )
-    parser.add_argument("--model", default="Qwen3-VL-8B")
-    parser.add_argument("--api-key", default="EMPTY")
+    parser.add_argument(
+        "--model",
+        default=os.environ.get("OPENAI_MODEL") or "Qwen3-VL-8B",
+        help="Model name (default: $OPENAI_MODEL, then Qwen3-VL-8B)",
+    )
+    parser.add_argument(
+        "--api-key",
+        default=os.environ.get("OPENAI_API_KEY") or os.environ.get("API_KEY") or "EMPTY",
+        help="API key (default: $OPENAI_API_KEY / $API_KEY, then 'EMPTY')",
+    )
     parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--timeout", type=float, default=120.0)
@@ -647,10 +709,9 @@ def main() -> int:
         dataset_name=args.dataset,
         mapping_path=mapping_path,
         pdf_dir=pdf_dir,
-        image_cache_dir=image_cache_dir,
         max_samples=args.max_samples,
     )
-    logger.info("Loaded %d samples from %s", len(samples), mapping_path)
+    logger.info("Loaded %d sample metadata from %s", len(samples), mapping_path)
 
     ocr_dir = resolve_ocr_dir(
         ocr_root=args.ocr_root,
@@ -677,6 +738,7 @@ def main() -> int:
         experiment=args.experiment,
         samples=samples,
         ocr_dir=ocr_dir,
+        image_cache_dir=image_cache_dir,
         pool=pool,
         output_dir=dataset_output_dir,
         fail_on_missing_ocr=args.fail_on_missing_ocr,
