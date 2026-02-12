@@ -71,19 +71,27 @@ class VLLMClientPool:
     def _chat_url(self, endpoint: str) -> str:
         return f"{endpoint}/chat/completions"
 
-    def chat(self, messages: list[dict[str, Any]]) -> str:
-        """Send chat completion request to one endpoint with retries."""
+    def chat(self, messages: list[dict[str, Any]], **kwargs: Any) -> str:
+        """Send chat completion request to one endpoint with retries.
+
+        Extra ``kwargs`` are merged into the request payload, allowing
+        per-request overrides such as ``max_tokens`` or ``response_format``.
+        """
         last_error: Exception | None = None
 
         for _ in range(self.max_retries + 1):
             endpoint = self._next_endpoint()
             url = self._chat_url(endpoint)
-            payload = {
+            payload: dict[str, Any] = {
                 "model": self.model,
                 "messages": messages,
-                "max_tokens": self.max_tokens,
-                "temperature": self.temperature,
+                "max_tokens": kwargs.get("max_tokens", self.max_tokens),
+                "temperature": kwargs.get("temperature", self.temperature),
             }
+            # Merge extra fields (e.g. response_format) excluding already-handled keys.
+            for k, v in kwargs.items():
+                if k not in ("max_tokens", "temperature"):
+                    payload[k] = v
             headers = {
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self.api_key}",

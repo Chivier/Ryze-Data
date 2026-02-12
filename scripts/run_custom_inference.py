@@ -31,6 +31,7 @@ from dataclasses import dataclass
 import json
 import logging
 from pathlib import Path
+import re
 import sys
 from typing import Any, Optional
 
@@ -40,11 +41,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from scripts.utils.benchmark.client_pool import VLLMClientPool
 from scripts.utils.benchmark.ocr_resolver import read_ocr_markdown, resolve_ocr_dir
-from scripts.utils.benchmark.prompt_builder import (
-    build_baseline_text_prompt,
-    build_multimodal_messages,
-    build_ocr_text_prompt,
-)
+from scripts.utils.benchmark.prompt_builder import build_multimodal_messages
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +64,102 @@ class Sample:
 
 
 # ---------------------------------------------------------------------------
+# Inference request container
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class InferenceRequest:
+    """Wraps chat messages with optional per-request generation overrides."""
+
+    messages: list[dict[str, Any]]
+    max_tokens: int | None = None
+    response_format: dict[str, str] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Prompt helpers
+# ---------------------------------------------------------------------------
+
+_LETTER_PREFIX_RE = re.compile(r"^[A-Da-d][.):\s]+\s*")
+
+
+def _strip_choice_prefix(text: str) -> str:
+    """Remove existing letter prefix like ``A. ``, ``A) `` from an option."""
+    return _LETTER_PREFIX_RE.sub("", text).strip()
+
+
+def _format_choices_clean(choices: list[str]) -> str:
+    """Format choices as ``A. text\\nB. text\\n…``, avoiding double prefixes."""
+    return "\n".join(
+        f"{chr(65 + i)}. {_strip_choice_prefix(c)}" for i, c in enumerate(choices)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Post-processing helpers
+# ---------------------------------------------------------------------------
+
+def _extract_option_letter(text: str) -> str:
+    """Extract a single option letter (A–D) from model output.
+
+    Handles JSON like ``{"answer": "B"}``, bare letters, and letters with
+    trailing punctuation or text.
+    """
+    text = text.strip()
+    # 1. Try JSON parse
+    try:
+        data = json.loads(text)
+        if isinstance(data, dict):
+            val = str(data.get("answer", "")).strip().upper()
+            if len(val) == 1 and val in "ABCD":
+                return val
+    except (json.JSONDecodeError, ValueError):
+        pass
+    # 2. Leading letter (possibly quoted)
+    m = re.match(r'^["\']?\s*([A-Da-d])\s*["\']?\s*[.)\]},:\s]', text)
+    if m:
+        return m.group(1).upper()
+    # 3. Exactly one character
+    if len(text) == 1 and text.upper() in "ABCD":
+        return text.upper()
+    # 4. Fallback — return raw (evaluation will still normalize)
+    return text
+
+
+def _normalize_mc_reference(reference: str) -> str:
+    """Normalize an ArxivQA label to a single letter (A/B/C/D).
+
+    Handles ``"B"``, ``"C) Four"``, ``"A. some text"`` etc.
+    """
+    ref = reference.strip()
+    m = re.match(r"^([A-Da-d])\b", ref)
+    return m.group(1).upper() if m else ref
+
+
+def postprocess_answer(answer: str, question_type: str) -> str:
+    """Post-process raw model output based on question type."""
+    if question_type == "multiple_choice":
+        return _extract_option_letter(answer)
+    return answer.strip()
+
+
+# ---------------------------------------------------------------------------
 # *** USER: Edit this function to build your own prompt. ***
 # ---------------------------------------------------------------------------
+
+_MC_SYSTEM = (
+    "You are a visual question answering assistant. "
+    "For the multiple-choice question, respond with ONLY a JSON object in "
+    'the exact format: {"answer": "X"} where X is the option letter '
+    "(A, B, C, or D). Do not include any other text."
+)
+
+_FT_SYSTEM = (
+    "You are a visual question answering assistant. "
+    "Answer as briefly as possible. Output ONLY the final answer — "
+    "no explanation, reasoning, or extra text."
+)
+
 
 def process_sample(
     sample_id: str,
@@ -78,50 +169,49 @@ def process_sample(
     choices: list[str] | None,
     reference: str,
     question_type: str,
-) -> list[dict[str, Any]]:
-    """Build OpenAI-compatible chat messages for one sample.
+) -> InferenceRequest:
+    """Build an ``InferenceRequest`` for one sample.
 
-    This is the main customisation point.  Replace the body of this function
-    with your own prompt construction logic.
-
-    Args:
-        sample_id:     Unique identifier, e.g. ``"arxivqa_0"``.
-        image_paths:   Absolute paths to cached PNG/JPG images.
-                       ArxivQA: single image.  SlideVQA: multiple slides.
-        ocr_markdown:  Precomputed OCR markdown, or ``None`` for baseline.
-        question:      The question text from the id_mapping JSON.
-        choices:       Options list (ArxivQA), or ``None`` (SlideVQA).
-        reference:     Ground-truth answer (``label`` or ``answer``).
-        question_type: ``"multiple_choice"`` or ``"free_text"``.
-
-    Returns:
-        OpenAI chat messages list, e.g.::
-
-            [{"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}},
-                {"type": "text", "text": "your prompt here"},
-            ]}]
-
-    Tip:
-        You can use the helper ``build_multimodal_messages(image_paths, text)``
-        to encode images as base64 and wrap them into the messages format.
+    * **ArxivQA** (``multiple_choice``): returns a JSON-mode request with
+      ``max_tokens=32`` so the model outputs ``{"answer": "B"}``.
+    * **SlideVQA** (``free_text``): returns a concise prompt requesting the
+      shortest possible answer.
     """
-    # --- Default implementation (works out of the box) ---
+    if question_type == "multiple_choice" and choices:
+        # ---- ArxivQA: structured JSON output ----
+        options_block = _format_choices_clean(choices)
+        if ocr_markdown is not None:
+            user_text = (
+                f"OCR text from the document:\n{ocr_markdown}\n\n"
+                f"Question: {question}\n\n{options_block}"
+            )
+        else:
+            user_text = f"Question: {question}\n\n{options_block}"
+
+        messages = [
+            {"role": "system", "content": _MC_SYSTEM},
+            *build_multimodal_messages(image_paths, user_text),
+        ]
+        return InferenceRequest(
+            messages=messages,
+            max_tokens=32,
+            response_format={"type": "json_object"},
+        )
+
+    # ---- SlideVQA: concise free-text ----
     if ocr_markdown is not None:
-        text_prompt = build_ocr_text_prompt(
-            ocr_markdown=ocr_markdown,
-            question=question,
-            choices=choices,
+        user_text = (
+            f"OCR text:\n{ocr_markdown}\n\n"
+            f"Question: {question}"
         )
     else:
-        text_prompt = build_baseline_text_prompt(
-            question=question,
-            choices=choices,
-        )
-    return build_multimodal_messages(
-        image_paths=image_paths,
-        text_prompt=text_prompt,
-    )
+        user_text = f"Question: {question}"
+
+    messages = [
+        {"role": "system", "content": _FT_SYSTEM},
+        *build_multimodal_messages(image_paths, user_text),
+    ]
+    return InferenceRequest(messages=messages)
 
 
 # ---------------------------------------------------------------------------
@@ -323,12 +413,15 @@ def _append_result(
     path: Path,
     sample: Sample,
     answer: str,
+    reference: str | None = None,
+    raw_answer: str | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     entry = {
         "sample_id": sample.sample_id,
         "answer": answer,
-        "reference": sample.reference,
+        "raw_answer": raw_answer if raw_answer is not None else answer,
+        "reference": reference if reference is not None else sample.reference,
         "question_type": sample.question_type,
     }
     with open(path, "a", encoding="utf-8") as f:
@@ -337,9 +430,21 @@ def _append_result(
 
 def _infer_one(
     pool: VLLMClientPool,
-    messages: list[dict[str, Any]],
+    request: InferenceRequest,
 ) -> str:
-    return pool.chat(messages=messages).strip()
+    kwargs: dict[str, Any] = {}
+    if request.max_tokens is not None:
+        kwargs["max_tokens"] = request.max_tokens
+    if request.response_format is not None:
+        kwargs["response_format"] = request.response_format
+    return pool.chat(messages=request.messages, **kwargs).strip()
+
+
+def _normalize_reference(reference: str, question_type: str) -> str:
+    """Normalize reference for storage: extract letter for MC questions."""
+    if question_type == "multiple_choice":
+        return _normalize_mc_reference(reference)
+    return reference
 
 
 def _run(
@@ -358,7 +463,7 @@ def _run(
 
     num_cached = len(cached)
     num_missing_ocr = 0
-    pending: list[tuple[Sample, list[dict[str, Any]]]] = []
+    pending: list[tuple[Sample, InferenceRequest]] = []
 
     for sample in samples:
         if sample.sample_id in cached:
@@ -375,10 +480,15 @@ def _run(
                         f"Missing OCR markdown for {sample.sample_id} in {ocr_dir}"
                     )
                 num_missing_ocr += 1
-                _append_result(path=results_path, sample=sample, answer="")
+                _append_result(
+                    path=results_path,
+                    sample=sample,
+                    answer="",
+                    reference=_normalize_reference(sample.reference, sample.question_type),
+                )
                 continue
 
-        messages = process_sample(
+        request = process_sample(
             sample_id=sample.sample_id,
             image_paths=sample.image_paths,
             ocr_markdown=ocr_markdown,
@@ -387,7 +497,7 @@ def _run(
             reference=sample.reference,
             question_type=sample.question_type,
         )
-        pending.append((sample, messages))
+        pending.append((sample, request))
 
     logger.info(
         "Experiment %s: %d cached, %d pending, %d missing OCR",
@@ -402,23 +512,31 @@ def _run(
 
     with ThreadPoolExecutor(max_workers=concurrency) as executor:
         future_map: dict[Future[str], Sample] = {}
-        for sample, messages in pending:
-            future = executor.submit(_infer_one, pool, messages)
+        for sample, request in pending:
+            future = executor.submit(_infer_one, pool, request)
             future_map[future] = sample
 
         completed = 0
         for future in as_completed(future_map):
             sample = future_map[future]
+            raw_answer = ""
             answer = ""
             try:
-                answer = future.result()
+                raw_answer = future.result()
+                answer = postprocess_answer(raw_answer, sample.question_type)
             except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     "Inference failed: sample=%s error=%s",
                     sample.sample_id,
                     exc,
                 )
-            _append_result(path=results_path, sample=sample, answer=answer)
+            _append_result(
+                path=results_path,
+                sample=sample,
+                answer=answer,
+                reference=_normalize_reference(sample.reference, sample.question_type),
+                raw_answer=raw_answer,
+            )
             completed += 1
             if completed % 50 == 0:
                 logger.info("Progress: %d/%d", completed, len(pending))
