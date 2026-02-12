@@ -430,7 +430,79 @@ data/benchmark_data/ocr_pdfs/{dataset}/   # Marker/MarkItDown 共享 PDF 缓存
 
 脚本支持断点续传——如果 `{sample_id}.md` 已存在则自动跳过。
 
-## 9. 命令速查表
+## 9. OCR 预计算评估（image + OCR + prompt）
+
+当 OCR 结果已经提前生成在 `data/ocr_precompute/` 时，可以直接使用新脚本做下游评估，不再在评估阶段实时跑 OCR。
+
+### 9.1 启动多 GPU vLLM 池
+
+```bash
+scripts/benchmark/start_vllm_pool.sh \
+  --model-path /data/models/Qwen3-VL-8B \
+  --model-name Qwen3-VL-8B \
+  --gpus 0,1,2,3 \
+  --base-port 8000
+```
+
+该脚本会：
+- 每块 GPU 启动一个 vLLM 实例
+- 自动分配端口（`base-port + idx`）
+- 将 endpoint 列表写入：`logs/benchmark/latest/vllm_pool_endpoints.txt`
+
+### 9.2 运行 OCR 预计算 Benchmark
+
+```bash
+# 全 5 组实验
+scripts/benchmark/run_ocr_benchmark.sh --dataset arxivqa
+
+# 指定子集实验
+scripts/benchmark/run_ocr_benchmark.sh \
+  --dataset arxivqa \
+  --experiments baseline,us \
+  --max-samples 100
+
+# 指定 OCR 根目录与 endpoint
+scripts/benchmark/run_ocr_benchmark.sh \
+  --dataset slidevqa \
+  --ocr-root data/ocr_precompute \
+  --endpoints http://localhost:8000/v1,http://localhost:8001/v1
+```
+
+实验名称固定为：
+- `baseline`（仅 image + prompt）
+- `baseline1`（DeepSeek OCR v1）
+- `baseline2`（DeepSeek OCR v2）
+- `baseline3`（MarkItDown）
+- `us`（Marker）
+
+### 9.3 输出结果
+
+```
+data/benchmark_results/ocr_bench/{dataset}/
+├── baseline/
+│   ├── answers.jsonl      # 原始回答（仅 answer 文本）
+│   └── metrics.json       # 统计指标
+├── baseline1/
+├── baseline2/
+├── baseline3/
+├── us/
+├── summary.json
+└── summary.csv
+```
+
+### 9.4 停止 vLLM 池
+
+```bash
+scripts/benchmark/stop_vllm_pool.sh
+```
+
+查看池状态：
+
+```bash
+scripts/benchmark/stop_vllm_pool.sh --status
+```
+
+## 10. 命令速查表
 
 | 操作 | 命令 |
 |------|------|
@@ -443,10 +515,13 @@ data/benchmark_data/ocr_pdfs/{dataset}/   # Marker/MarkItDown 共享 PDF 缓存
 | 查看状态 | `scripts/bench.sh status` |
 | 运行评估 | `scripts/benchmark/run_benchmark.sh` |
 | 合并报告 | `scripts/benchmark/generate_report.sh` |
+| 启动 vLLM 池 | `scripts/benchmark/start_vllm_pool.sh --model-path ... --gpus 0,1` |
+| 运行预计算评估 | `scripts/benchmark/run_ocr_benchmark.sh --dataset arxivqa` |
+| 停止 vLLM 池 | `scripts/benchmark/stop_vllm_pool.sh` |
 | 单模型调试 | `scripts/bench.sh single deepseek-ocr` |
 | 清理数据 | `scripts/bench.sh clean` |
 
-## 9. 常见问题
+## 11. 常见问题
 
 **Q: vLLM 启动超时怎么办？**
 
