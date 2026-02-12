@@ -218,3 +218,6 @@ __marimo__/
 # Ryze-Data
 .env
 scripts/utils/*/.venv/
+.venv-ocr/
+.hf_cache/
+data/
