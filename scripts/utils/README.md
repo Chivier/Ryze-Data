@@ -7,6 +7,7 @@ Standalone scripts to run 4 OCR models on ArxivQA / SlideVQA datasets. Each mode
 ```
 scripts/utils/
 ├── _shared/              # Shared code (dataset loader, image→PDF)
+├── benchmark/            # OCR-precompute benchmark helpers
 ├── deepseek_ocr_v1/      # DeepSeek-OCR v1  (GPU, direct image)
 ├── deepseek_ocr_v2/      # DeepSeek-OCR v2  (GPU, direct image)
 ├── marker/               # Marker           (pipelined image→PDF→OCR, CPU/GPU selectable)
@@ -156,6 +157,21 @@ cd scripts/utils/deepseek_ocr_v1
 # Terminal 4 — DeepSeek v2 (GPU 1)
 cd scripts/utils/deepseek_ocr_v2
 .venv/bin/python run_ocr.py --dataset arxivqa --gpu 1
+```
+
+## OCR-precompute Benchmark Helpers
+
+`scripts/utils/benchmark/` provides reusable modules for:
+
+- Dataset pairing (`sample_id` ↔ image/question/reference)
+- OCR markdown path resolution by experiment name
+- Prompt/message assembly (image + OCR + prompt)
+- Endpoint pool client and metrics (precision/recall/F1)
+
+These helpers are used by:
+
+```bash
+uv run python scripts/benchmark/run_ocr_benchmark.py --dataset arxivqa
 ```
 
 ## Troubleshooting

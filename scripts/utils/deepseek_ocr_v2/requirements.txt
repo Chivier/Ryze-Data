@@ -1,10 +1,3 @@
-torch
-torchvision
-transformers==4.46.3
-einops
-addict
-easydict
-matplotlib
-Pillow
 datasets
+Pillow
 tqdm

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# Setup isolated venv for DeepSeek-OCR v1.
-# Uses transformers backend by default (optional vLLM backend in script).
+# Setup isolated venv for DeepSeek-OCR v1 with vLLM backend.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-echo "=== Setting up DeepSeek-OCR v1 environment ==="
+echo "=== Setting up DeepSeek-OCR v1 (vLLM) environment ==="
 
 if ! command -v uv &>/dev/null; then
     echo "Error: uv is not installed. Install it first: https://docs.astral.sh/uv/"
@@ -14,8 +13,8 @@ if ! command -v uv &>/dev/null; then
 fi
 
 uv venv .venv --python 3.11
+uv pip install -U vllm --torch-backend auto --python .venv/bin/python
 uv pip install -r requirements.txt --python .venv/bin/python
 
 echo "=== Setup complete ==="
 echo "Run OCR with: .venv/bin/python run_ocr.py --dataset arxivqa --gpu 0"
-echo "Optional backend flag: --backend transformers|auto|vllm"

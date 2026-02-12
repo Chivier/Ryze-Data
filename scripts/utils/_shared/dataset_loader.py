@@ -5,6 +5,7 @@ cached image paths for downstream OCR processing.
 """
 
 import logging
+import os
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -34,7 +35,7 @@ def _decode_image(image):
     Handles the forms returned by HF datasets:
       - ``PIL.Image.Image`` — already decoded (e.g. SlideVQA page_N cols).
       - ``dict`` with ``bytes`` and/or ``path`` keys.
-      - ``str`` — absolute file path.
+      - ``str`` — file path.
 
     Args:
         image: Raw image value from a dataset row.
@@ -54,34 +55,105 @@ def _decode_image(image):
         if raw:
             return Image.open(io.BytesIO(raw))
         path = image.get("path")
-        if path and Path(path).is_absolute() and Path(path).exists():
-            return Image.open(path)
+        if path:
+            path_obj = Path(path)
+            if path_obj.exists():
+                return Image.open(path_obj)
 
-    if isinstance(image, str) and Path(image).is_absolute() and Path(image).exists():
-        from PIL import Image
-
-        return Image.open(image)
+    if isinstance(image, str):
+        path_obj = Path(image)
+        if path_obj.exists():
+            return Image.open(path_obj)
 
     return None
 
 
 def _find_images_tgz() -> Path | None:
     """Find images.tgz in the HuggingFace hub cache for ArxivQA."""
-    hub_dir = (
-        Path.home()
-        / ".cache"
-        / "huggingface"
-        / "hub"
-        / "datasets--MMInstruction--ArxivQA"
-        / "snapshots"
-    )
-    if not hub_dir.exists():
-        return None
-    for snap in hub_dir.iterdir():
-        tgz = snap / "images.tgz"
-        if tgz.exists():
-            return tgz.resolve()
+    candidate_hub_roots = []
+    if os.environ.get("HF_HUB_CACHE"):
+        candidate_hub_roots.append(Path(os.environ["HF_HUB_CACHE"]))
+    if os.environ.get("HF_HOME"):
+        candidate_hub_roots.append(Path(os.environ["HF_HOME"]) / "hub")
+    if os.environ.get("XDG_CACHE_HOME"):
+        candidate_hub_roots.append(Path(os.environ["XDG_CACHE_HOME"]) / "huggingface" / "hub")
+    candidate_hub_roots.append(Path.home() / ".cache" / "huggingface" / "hub")
+
+    # Deduplicate while preserving order.
+    seen = set()
+    for root in candidate_hub_roots:
+        root_str = str(root)
+        if root_str in seen:
+            continue
+        seen.add(root_str)
+
+        snapshots_dir = root / "datasets--MMInstruction--ArxivQA" / "snapshots"
+        if not snapshots_dir.exists():
+            continue
+
+        for snap in snapshots_dir.iterdir():
+            tgz = snap / "images.tgz"
+            if tgz.exists():
+                return tgz.resolve()
     return None
+
+
+def _load_hf_token() -> str | None:
+    """Load HF token from env vars or common token file locations."""
+    for env_name in ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "HUGGING_FACE_HUB_TOKEN"):
+        token = os.environ.get(env_name)
+        if token and token.strip():
+            logger.info("Using HuggingFace token from env var %s", env_name)
+            return token.strip()
+
+    candidate_paths = []
+    if os.environ.get("HF_TOKEN_PATH"):
+        candidate_paths.append(Path(os.environ["HF_TOKEN_PATH"]))
+    if os.environ.get("HF_HOME"):
+        candidate_paths.append(Path(os.environ["HF_HOME"]) / "token")
+    if os.environ.get("XDG_CACHE_HOME"):
+        candidate_paths.append(Path(os.environ["XDG_CACHE_HOME"]) / "huggingface" / "token")
+    candidate_paths.extend(
+        [
+            Path.home() / ".cache" / "huggingface" / "token",
+            Path.home() / ".huggingface" / "token",
+        ]
+    )
+
+    seen = set()
+    for token_path in candidate_paths:
+        path_str = str(token_path)
+        if path_str in seen:
+            continue
+        seen.add(path_str)
+
+        if not token_path.exists():
+            continue
+
+        try:
+            token = token_path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+
+        if token:
+            logger.info("Using HuggingFace token from %s", token_path)
+            return token
+
+    return None
+
+
+def _load_dataset_with_auth(repo_id: str, split: str):
+    """Load HF dataset with explicit auth fallback for changed cache roots."""
+    from datasets import load_dataset
+
+    token = _load_hf_token()
+    if token:
+        try:
+            return load_dataset(repo_id, split=split, token=token)
+        except TypeError:
+            # Backward compatibility with older `datasets` versions.
+            return load_dataset(repo_id, split=split, use_auth_token=token)
+    return load_dataset(repo_id, split=split)
 
 
 def _ensure_arxivqa_images(cache_dir: str) -> Path:
@@ -143,10 +215,8 @@ def load_arxivqa(
     Yields:
         OCRSample for each dataset item.
     """
-    from datasets import load_dataset
-
     logger.info("Loading ArxivQA dataset...")
-    dataset = load_dataset("MMInstruction/ArxivQA", split="train")
+    dataset = _load_dataset_with_auth("MMInstruction/ArxivQA", split="train")
     logger.info("ArxivQA: %d total samples", len(dataset))
 
     # Ensure the raw images from images.tgz are available.
@@ -193,6 +263,31 @@ def load_arxivqa(
         )
 
 
+def _extract_slidevqa_images(item: dict) -> list:
+    """Extract SlideVQA images across known schema variants."""
+    images = item.get("images")
+    if isinstance(images, list) and images:
+        return images
+
+    single_image = item.get("image")
+    if single_image is not None:
+        return [single_image]
+
+    # The official SlideVQA schema stores pages in page_1..page_20 columns.
+    page_images = []
+    for key, value in item.items():
+        if not key.startswith("page_") or value is None:
+            continue
+        try:
+            page_idx = int(key.split("_", 1)[1])
+        except (IndexError, ValueError):
+            continue
+        page_images.append((page_idx, value))
+
+    page_images.sort(key=lambda pair: pair[0])
+    return [image for _, image in page_images]
+
+
 def load_slidevqa(
     cache_dir: str,
     max_samples: int = 0,
@@ -210,10 +305,8 @@ def load_slidevqa(
     Yields:
         OCRSample for each dataset item.
     """
-    from datasets import load_dataset
-
     logger.info("Loading SlideVQA dataset...")
-    dataset = load_dataset("NTT-hil-insight/SlideVQA", split="test")
+    dataset = _load_dataset_with_auth("NTT-hil-insight/SlideVQA", split="test")
     logger.info("SlideVQA: %d total samples", len(dataset))
 
     if max_samples > 0:
@@ -225,12 +318,8 @@ def load_slidevqa(
     for idx, item in enumerate(dataset):
         sample_id = f"slidevqa_{idx}"
 
-        # Extract slide images — may be a list or page_N columns
-        images = item.get("images", [])
-        if not images:
-            single_image = item.get("image")
-            if single_image is not None:
-                images = [single_image]
+        # Extract slide images from known schema variants.
+        images = _extract_slidevqa_images(item)
 
         image_paths = []
         for img_idx, image in enumerate(images):
