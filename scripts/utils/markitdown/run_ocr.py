@@ -13,6 +13,7 @@ import argparse
 import logging
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -65,6 +66,30 @@ def configure_cache_env(cache_dir: Path) -> None:
             Path(env_value).mkdir(parents=True, exist_ok=True)
 
 
+MAX_IMAGE_SIZE = (1024, 1024)
+
+
+def _resize_images(image_paths: list[str], work_dir: str) -> list[str]:
+    """Resize images to fit within MAX_IMAGE_SIZE, preserving aspect ratio.
+
+    Images that already fit are returned as-is. Oversized images are saved to
+    work_dir as resized copies.
+    """
+    from PIL import Image
+
+    resized: list[str] = []
+    for i, path in enumerate(image_paths):
+        img = Image.open(path)
+        if img.width <= MAX_IMAGE_SIZE[0] and img.height <= MAX_IMAGE_SIZE[1]:
+            resized.append(path)
+            continue
+        img.thumbnail(MAX_IMAGE_SIZE, Image.LANCZOS)
+        out = os.path.join(work_dir, f"resized_{i}_{Path(path).name}")
+        img.save(out)
+        resized.append(out)
+    return resized
+
+
 def process_sample(
     sample_id: str,
     image_paths: list[str],
@@ -92,11 +117,13 @@ def process_sample(
         logger.debug("Skipping %s (already processed)", sample_id)
         return True
 
-    # Convert images to PDF
+    # Convert images to PDF (with resize)
     pdf_path = str(pdf_cache_dir / f"{sample_id}.pdf")
     if not Path(pdf_path).exists():
         try:
-            images_to_pdf(image_paths, pdf_path)
+            with tempfile.TemporaryDirectory(prefix="markitdown_resize_") as tmp_dir:
+                resized_paths = _resize_images(image_paths, tmp_dir)
+                images_to_pdf(resized_paths, pdf_path)
         except Exception as e:
             logger.error("Failed to create PDF for %s: %s", sample_id, e)
             return False

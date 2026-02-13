@@ -15,6 +15,7 @@ import argparse
 import logging
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -169,6 +170,30 @@ def infer_single_image_vllm(
     return outputs[0].outputs[0].text
 
 
+MAX_IMAGE_SIZE = (1024, 1024)
+
+
+def _resize_images(image_paths: list[str], work_dir: str) -> list[str]:
+    """Resize images to fit within MAX_IMAGE_SIZE, preserving aspect ratio.
+
+    Images that already fit are returned as-is. Oversized images are saved to
+    work_dir as resized copies.
+    """
+    from PIL import Image
+
+    resized: list[str] = []
+    for i, path in enumerate(image_paths):
+        img = Image.open(path)
+        if img.width <= MAX_IMAGE_SIZE[0] and img.height <= MAX_IMAGE_SIZE[1]:
+            resized.append(path)
+            continue
+        img.thumbnail(MAX_IMAGE_SIZE, Image.LANCZOS)
+        out = os.path.join(work_dir, f"resized_{i}_{Path(path).name}")
+        img.save(out)
+        resized.append(out)
+    return resized
+
+
 def process_sample(
     llm,
     sampling_params,
@@ -187,16 +212,18 @@ def process_sample(
 
     try:
         md_output_dir.mkdir(parents=True, exist_ok=True)
-        page_markdowns: list[str] = []
-        for image_path in image_paths:
-            page_markdowns.append(
-                infer_single_image_vllm(
-                    llm=llm,
-                    sampling_params=sampling_params,
-                    prompt=prompt,
-                    image_path=image_path,
+        with tempfile.TemporaryDirectory(prefix="dsocr1_resize_") as tmp_dir:
+            resized_paths = _resize_images(image_paths, tmp_dir)
+            page_markdowns: list[str] = []
+            for image_path in resized_paths:
+                page_markdowns.append(
+                    infer_single_image_vllm(
+                        llm=llm,
+                        sampling_params=sampling_params,
+                        prompt=prompt,
+                        image_path=image_path,
+                    )
                 )
-            )
         full_md = "\n\n---\n\n".join(page_markdowns)
         md_path.write_text(full_md, encoding="utf-8")
         return True

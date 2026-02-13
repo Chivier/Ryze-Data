@@ -16,6 +16,7 @@ import argparse
 import logging
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -220,6 +221,30 @@ def infer_single_image_transformers(model, tokenizer, image_path: str, output_pa
     raise RuntimeError("DeepSeek-OCR-2 inference produced no markdown output")
 
 
+MAX_IMAGE_SIZE = (1024, 1024)
+
+
+def _resize_images(image_paths: list[str], work_dir: str) -> list[str]:
+    """Resize images to fit within MAX_IMAGE_SIZE, preserving aspect ratio.
+
+    Images that already fit are returned as-is. Oversized images are saved to
+    work_dir as resized copies.
+    """
+    from PIL import Image
+
+    resized: list[str] = []
+    for i, path in enumerate(image_paths):
+        img = Image.open(path)
+        if img.width <= MAX_IMAGE_SIZE[0] and img.height <= MAX_IMAGE_SIZE[1]:
+            resized.append(path)
+            continue
+        img.thumbnail(MAX_IMAGE_SIZE, Image.LANCZOS)
+        out = os.path.join(work_dir, f"resized_{i}_{Path(path).name}")
+        img.save(out)
+        resized.append(out)
+    return resized
+
+
 def process_sample(
     backend: str,
     model,
@@ -239,20 +264,22 @@ def process_sample(
     try:
         md_output_dir.mkdir(parents=True, exist_ok=True)
 
-        page_markdowns = []
-        for image_path in image_paths:
-            if backend == "vllm":
-                md = infer_single_image_vllm(model, tokenizer_or_sampling, image_path)
-            elif backend == "transformers":
-                md = infer_single_image_transformers(
-                    model,
-                    tokenizer_or_sampling,
-                    image_path,
-                    str(md_output_dir),
-                )
-            else:
-                raise ValueError(f"Unsupported backend: {backend}")
-            page_markdowns.append(md)
+        with tempfile.TemporaryDirectory(prefix="dsocr2_resize_") as tmp_dir:
+            resized_paths = _resize_images(image_paths, tmp_dir)
+            page_markdowns = []
+            for image_path in resized_paths:
+                if backend == "vllm":
+                    md = infer_single_image_vllm(model, tokenizer_or_sampling, image_path)
+                elif backend == "transformers":
+                    md = infer_single_image_transformers(
+                        model,
+                        tokenizer_or_sampling,
+                        image_path,
+                        str(md_output_dir),
+                    )
+                else:
+                    raise ValueError(f"Unsupported backend: {backend}")
+                page_markdowns.append(md)
 
         full_md = "\n\n---\n\n".join(page_markdowns)
         md_path.write_text(full_md, encoding="utf-8")
