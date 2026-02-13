@@ -5,14 +5,15 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-EXPERIMENT_ORDER = ["baseline", "baseline1", "baseline2", "baseline3", "us"]
-OCR_EXPERIMENTS = ["baseline1", "baseline2", "baseline3", "us"]
+EXPERIMENT_ORDER = ["baseline", "baseline1", "baseline2", "baseline3", "us", "baseline4"]
+OCR_EXPERIMENTS = ["baseline1", "baseline2", "baseline3", "us", "baseline4"]
 
 EXPERIMENT_TO_MODEL_DIR = {
     "baseline1": "deepseek_ocr_v1",
     "baseline2": "deepseek_ocr_v2",
     "baseline3": "markitdown",
     "us": "marker",
+    "baseline4": "glm_ocr_organized",
 }
 
 

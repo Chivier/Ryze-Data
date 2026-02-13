@@ -50,7 +50,9 @@ Ryze-Data/                              ← run scripts from here
     │   │       └── ...                 ← same structure
     │   ├── deepseek_ocr_v2/            ← experiment "baseline2"  (same layout)
     │   ├── markitdown/                 ← experiment "baseline3"  (same layout)
-    │   └── marker/                     ← experiment "us"         (same layout)
+    │   ├── marker/                     ← experiment "us"         (same layout)
+    │   ├── glm_ocr/                   ← raw GLM-OCR output (flat files)
+    │   └── glm_ocr_organized/         ← experiment "baseline4"  (reorganized from glm_ocr)
     │
     └── custom_inference/               ← output results (created at runtime)
         ├── arxivqa/
@@ -101,6 +103,7 @@ For each sample, the script looks for OCR output in this order:
 | `baseline1` | DeepSeek-OCR v1 | First-generation DeepSeek OCR model | `data/ocr_precompute/deepseek_ocr_v1/{dataset}/` |
 | `baseline2` | DeepSeek-OCR v2 | Second-generation DeepSeek OCR model | `data/ocr_precompute/deepseek_ocr_v2/{dataset}/` |
 | `baseline3` | MarkItDown | Microsoft MarkItDown converter | `data/ocr_precompute/markitdown/{dataset}/` |
+| `baseline4` | GLM-OCR | GLM-based OCR model | `data/ocr_precompute/glm_ocr_organized/{dataset}/` |
 | `us` | Marker | Marker PDF-to-markdown pipeline | `data/ocr_precompute/marker/{dataset}/` |
 
 **How it works:** For `baseline`, only the rendered PDF page image(s) are sent to the VLM.
@@ -127,6 +130,34 @@ python scripts/run_custom_inference.py \
     --experiment baseline \
     --endpoints http://localhost:8000/v1 \
     --max-samples 50
+```
+
+### GLM-OCR (baseline4)
+
+GLM-OCR raw output uses a different file layout (flat files named by ArxivID / per-page
+markdown). Run the reorganization script first to convert into the standard structure:
+
+```bash
+# Step 1: reorganize raw glm_ocr files into glm_ocr_organized/
+python scripts/reorganize_glm_ocr.py --dataset all
+
+# Step 2: run inference
+python scripts/run_custom_inference.py \
+    --dataset arxivqa \
+    --experiment baseline4 \
+    --endpoints http://localhost:8000/v1
+
+python scripts/run_custom_inference.py \
+    --dataset slidevqa \
+    --experiment baseline4 \
+    --endpoints http://localhost:8000/v1 \
+    --allow-missing-ocr
+```
+
+Use `--dry-run` with the reorganization script to preview without writing files:
+
+```bash
+python scripts/reorganize_glm_ocr.py --dataset all --dry-run
 ```
 
 ### OCR-augmented experiments
@@ -214,7 +245,7 @@ python scripts/run_custom_inference.py \
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--dataset` | *(required)* | `arxivqa` or `slidevqa` |
-| `--experiment` | *(required)* | `baseline`, `baseline1`, `baseline2`, `baseline3`, `us` |
+| `--experiment` | *(required)* | `baseline`, `baseline1`, `baseline2`, `baseline3`, `us`, `baseline4` |
 | `--endpoints` | `localhost:8000/v1` | Comma-separated OpenAI-compatible API base URLs |
 | `--model` | `Qwen3-VL-8B` | Model name passed in API requests |
 | `--api-key` | `$OPENAI_API_KEY` / `$API_KEY` / `EMPTY` | API key for authentication |

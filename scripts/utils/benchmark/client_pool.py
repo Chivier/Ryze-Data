@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import itertools
+import logging
 import threading
 from typing import Any
 
 import requests
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_base_url(endpoint: str) -> str:
@@ -104,6 +107,12 @@ class VLLMClientPool:
                     headers=headers,
                     timeout=self.timeout,
                 )
+                if not response.ok:
+                    # Log the response body for diagnosis before raising.
+                    body = response.text[:500] if response.text else "(empty)"
+                    logger.warning(
+                        "HTTP %d from %s: %s", response.status_code, url, body,
+                    )
                 response.raise_for_status()
                 data = response.json()
                 choice = data["choices"][0]["message"]

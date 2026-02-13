@@ -3,16 +3,25 @@
 from __future__ import annotations
 
 import base64
+import io
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
+from PIL import Image
+
+_MAX_IMAGE_SIZE = 512
+
 
 @lru_cache(maxsize=8192)
 def _encode_image_b64(image_path: str) -> str:
-    """Encode image bytes to base64 with process-local memoization."""
-    with open(image_path, "rb") as f:
-        return base64.b64encode(f.read()).decode("utf-8")
+    """Resize to fit within 512x512, then encode to base64."""
+    img = Image.open(image_path)
+    img.thumbnail((_MAX_IMAGE_SIZE, _MAX_IMAGE_SIZE))
+    buf = io.BytesIO()
+    fmt = "PNG" if Path(image_path).suffix.lower() == ".png" else "JPEG"
+    img.save(buf, format=fmt)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
 
 
 def _guess_mime_type(image_path: str) -> str:

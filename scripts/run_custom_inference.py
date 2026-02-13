@@ -608,7 +608,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--experiment",
         required=True,
-        choices=["baseline", "baseline1", "baseline2", "baseline3", "us"],
+        choices=["baseline", "baseline1", "baseline2", "baseline3", "us", "baseline4"],
         help="Experiment (determines which OCR precompute to load)",
     )
     parser.add_argument(
