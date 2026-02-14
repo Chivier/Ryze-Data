@@ -60,12 +60,15 @@ class OCRRegistry:
         return cls._models.get(name)
 
     @classmethod
-    def get_model(cls, name: str, output_dir: str) -> BaseOCRModel:
+    def get_model(cls, name: str, output_dir: str, **kwargs) -> BaseOCRModel:
         """Instantiate a registered model by name.
 
         Args:
             name: The MODEL_NAME of the desired model.
             output_dir: Directory for OCR output.
+            **kwargs: Extra keyword arguments forwarded to the model
+                constructor (e.g. ``backend``, ``api_key`` for GLM-OCR,
+                or ``mode``, ``device`` for PaddleOCR).
 
         Returns:
             An instance of the requested OCR model.
@@ -87,7 +90,7 @@ class OCRRegistry:
                 f"are not installed. Install them and try again."
             )
 
-        return model_class(output_dir=output_dir)
+        return model_class(output_dir=output_dir, **kwargs)
 
     @classmethod
     def list_all(cls) -> List[str]:
