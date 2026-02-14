@@ -3,11 +3,24 @@
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import List
 
 from src.ocr.base_ocr import BaseOCRModel, OCRResult
 from src.ocr.registry import OCRRegistry
+
+
+def _resolve_cli_bin(cli_name: str) -> str:
+    """Resolve a CLI binary from current venv first, then fallback to PATH."""
+    candidates = [
+        Path(sys.executable).parent / cli_name,
+        Path(sys.executable).resolve().parent / cli_name,
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+    return cli_name
 
 
 @OCRRegistry.register
@@ -32,29 +45,49 @@ class MarkerOCR(BaseOCRModel):
     def process_single(self, pdf_path: str) -> OCRResult:
         """Process a single PDF using marker_single.
 
-        Args:
-            pdf_path: Absolute path to the PDF file.
-
-        Returns:
-            OCRResult with processing outcome.
+        Tries the legacy positional CLI form first, then falls back to
+        the modern ``--output_dir`` flag if the old form is rejected.
+        After conversion, normalises the output .md filename via glob.
         """
         paper_name = Path(pdf_path).stem
         paper_output_dir = self.output_dir / paper_name
 
         try:
-            cmd = [
-                "marker_single",
+            marker_bin = _resolve_cli_bin("marker_single")
+
+            # Legacy CLI: marker_single <pdf> <output_dir> --output_format markdown
+            legacy_cmd = [
+                marker_bin,
                 str(pdf_path),
                 str(paper_output_dir),
                 "--output_format",
                 "markdown",
             ]
 
-            self.logger.info(f"Processing {paper_name} with marker_single")
-            process = subprocess.run(cmd, capture_output=True, text=True)
+            self.logger.info("Processing %s with marker_single", paper_name)
+            process = subprocess.run(legacy_cmd, capture_output=True, text=True)
+
+            # Fallback to modern CLI if legacy positional form is rejected.
+            if process.returncode != 0 and "unexpected extra argument" in (
+                process.stderr or ""
+            ).lower():
+                modern_cmd = [
+                    marker_bin,
+                    str(pdf_path),
+                    "--output_dir",
+                    str(paper_output_dir),
+                    "--output_format",
+                    "markdown",
+                ]
+                process = subprocess.run(modern_cmd, capture_output=True, text=True)
 
             if process.returncode == 0 and paper_output_dir.exists():
                 md_path = paper_output_dir / f"{paper_name}.md"
+                # Normalise output: rename first .md found to expected name.
+                if not md_path.exists():
+                    candidates = list(paper_output_dir.glob("**/*.md"))
+                    if candidates:
+                        candidates[0].rename(md_path)
                 if md_path.exists():
                     return self._make_result(
                         pdf_path,
@@ -66,7 +99,7 @@ class MarkerOCR(BaseOCRModel):
             return self._make_result(pdf_path, status=f"failed: {stderr}")
 
         except Exception as e:
-            self.logger.error(f"Failed to process {paper_name}: {e}")
+            self.logger.error("Failed to process %s: %s", paper_name, e)
             return self._make_result(pdf_path, status=f"failed: {e}")
 
     def supports_batch(self) -> bool:

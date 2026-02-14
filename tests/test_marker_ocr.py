@@ -33,8 +33,9 @@ class TestMarkerOCR:
     def test_is_available_false(self, mock_which):
         assert MarkerOCR.is_available() is False
 
+    @patch("src.ocr.marker_ocr._resolve_cli_bin", return_value="marker_single")
     @patch("subprocess.run")
-    def test_process_single_success(self, mock_run, model, output_dir):
+    def test_process_single_success(self, mock_run, mock_bin, model, output_dir):
         """Test successful single PDF processing."""
         paper_name = "test_paper"
         pdf_path = f"/data/{paper_name}.pdf"
@@ -51,8 +52,60 @@ class TestMarkerOCR:
         assert result.paper_name == paper_name
         assert result.ocr_result_path == str(paper_out)
 
+    @patch("src.ocr.marker_ocr._resolve_cli_bin", return_value="marker_single")
     @patch("subprocess.run")
-    def test_process_single_failure_nonzero_exit(self, mock_run, model):
+    def test_process_single_fallback_to_modern_cli(
+        self, mock_run, mock_bin, model, output_dir
+    ):
+        """Test fallback to modern --output_dir CLI when legacy fails."""
+        paper_name = "test_paper"
+        pdf_path = f"/data/{paper_name}.pdf"
+
+        paper_out = Path(output_dir) / paper_name
+        paper_out.mkdir()
+        (paper_out / f"{paper_name}.md").write_text("# Test Paper")
+
+        # First call fails with "unexpected extra argument", second succeeds.
+        mock_run.side_effect = [
+            MagicMock(
+                returncode=1,
+                stderr="Error: unexpected extra argument",
+                stdout="",
+            ),
+            MagicMock(returncode=0, stderr="", stdout=""),
+        ]
+
+        result = model.process_single(pdf_path)
+        assert result.ocr_status == "success"
+        assert mock_run.call_count == 2
+
+    @patch("src.ocr.marker_ocr._resolve_cli_bin", return_value="marker_single")
+    @patch("subprocess.run")
+    def test_process_single_glob_fallback(
+        self, mock_run, mock_bin, model, output_dir
+    ):
+        """Test glob fallback when .md is in a subdirectory."""
+        paper_name = "test_paper"
+        pdf_path = f"/data/{paper_name}.pdf"
+
+        paper_out = Path(output_dir) / paper_name
+        sub_dir = paper_out / "sub"
+        sub_dir.mkdir(parents=True)
+        # Output .md is in a subdirectory, not at expected path.
+        (sub_dir / "output.md").write_text("# From subdir")
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="", stdout="")
+
+        result = model.process_single(pdf_path)
+        assert result.ocr_status == "success"
+        # Verify the file was renamed to the expected path.
+        assert (paper_out / f"{paper_name}.md").exists()
+
+    @patch("src.ocr.marker_ocr._resolve_cli_bin", return_value="marker_single")
+    @patch("subprocess.run")
+    def test_process_single_failure_nonzero_exit(
+        self, mock_run, mock_bin, model
+    ):
         """Test handling of non-zero exit code."""
         mock_run.return_value = MagicMock(
             returncode=1, stderr="marker error", stdout=""
@@ -62,16 +115,20 @@ class TestMarkerOCR:
         assert "failed" in result.ocr_status
         assert result.paper_name == "fail"
 
+    @patch("src.ocr.marker_ocr._resolve_cli_bin", return_value="marker_single")
     @patch("subprocess.run")
-    def test_process_single_no_output_dir(self, mock_run, model):
+    def test_process_single_no_output_dir(self, mock_run, mock_bin, model):
         """Test handling when output directory is not created."""
         mock_run.return_value = MagicMock(returncode=0, stderr="", stdout="")
 
         result = model.process_single("/data/missing.pdf")
         assert "failed" in result.ocr_status
 
-    @patch("subprocess.run", side_effect=FileNotFoundError("marker_single not found"))
-    def test_process_single_exception(self, mock_run, model):
+    @patch(
+        "src.ocr.marker_ocr._resolve_cli_bin",
+        side_effect=FileNotFoundError("marker_single not found"),
+    )
+    def test_process_single_exception(self, mock_bin, model):
         """Test handling of subprocess exception."""
         result = model.process_single("/data/error.pdf")
         assert "failed" in result.ocr_status
@@ -85,14 +142,16 @@ class TestMarkerOCR:
     def test_supports_batch_false(self, mock_which, model):
         assert model.supports_batch() is False
 
+    @patch("src.ocr.marker_ocr._resolve_cli_bin", return_value="marker_single")
     @patch("subprocess.run")
     @patch("shutil.which", return_value="/usr/bin/marker_chunk_convert")
-    def test_process_batch_multi_gpu(self, mock_which, mock_run, model, output_dir):
+    def test_process_batch_multi_gpu(
+        self, mock_which, mock_run, mock_bin, model, output_dir
+    ):
         """Test batch processing with multiple GPUs."""
-        # Create real temp PDF files (shutil.copy2 needs them to exist)
-        import tempfile
+        import tempfile as _tf
 
-        with tempfile.TemporaryDirectory() as pdf_dir:
+        with _tf.TemporaryDirectory() as pdf_dir:
             pdf_a = Path(pdf_dir) / "a.pdf"
             pdf_b = Path(pdf_dir) / "b.pdf"
             pdf_a.write_bytes(b"%PDF-1.4 test a")
@@ -100,7 +159,6 @@ class TestMarkerOCR:
 
             pdfs = [str(pdf_a), str(pdf_b)]
 
-            # Create expected output
             for name in ["a", "b"]:
                 out_dir = Path(output_dir) / name
                 out_dir.mkdir()
@@ -112,12 +170,14 @@ class TestMarkerOCR:
             assert len(results) == 2
             assert all(r.ocr_status == "success" for r in results)
 
+    @patch("src.ocr.marker_ocr._resolve_cli_bin", return_value="marker_single")
     @patch("subprocess.run")
-    def test_process_batch_single_gpu_fallback(self, mock_run, model, output_dir):
+    def test_process_batch_single_gpu_fallback(
+        self, mock_run, mock_bin, model, output_dir
+    ):
         """Test batch with single GPU falls back to sequential."""
         pdfs = ["/data/a.pdf"]
 
-        # Create expected output
         out_dir = Path(output_dir) / "a"
         out_dir.mkdir()
         (out_dir / "a.md").write_text("# a")
