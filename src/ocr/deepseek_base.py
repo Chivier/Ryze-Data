@@ -1,9 +1,9 @@
-"""Shared base class for DeepSeek OCR v1 and v2 models."""
+"""Shared base class for DeepSeek OCR models."""
 
 import shutil
 from pathlib import Path
 
-from src.ocr.base_ocr import BaseOCRModel, OCRResult
+from src.ocr.base_ocr import BaseOCRModel, OCRResult, resize_image
 
 
 class BaseDeepSeekOCR(BaseOCRModel):
@@ -16,8 +16,10 @@ class BaseDeepSeekOCR(BaseOCRModel):
         - INCLUDE_TEST_COMPRESS: Whether to pass ``test_compress=True``
           to ``model.infer``.
 
-    The model and tokenizer are loaded lazily on the first call to
-    ``process_single`` to avoid allocating GPU memory at import time.
+    The model is loaded lazily on the first call to ``process_single``
+    to avoid allocating GPU memory at import time.  Subclasses may
+    override ``_ensure_model_loaded`` and ``_infer_single_image`` to
+    switch backends (e.g. vLLM instead of transformers).
     """
 
     HF_MODEL_ID: str = ""
@@ -25,6 +27,7 @@ class BaseDeepSeekOCR(BaseOCRModel):
     INCLUDE_TEST_COMPRESS: bool = False
 
     DEFAULT_PROMPT = "<image>\n<|grounding|>Convert the document to markdown."
+    MAX_TOKENS: int = 8192
     DPI = 200
     BASE_SIZE = 448
 
@@ -34,15 +37,11 @@ class BaseDeepSeekOCR(BaseOCRModel):
         self._tokenizer = None
 
     # ------------------------------------------------------------------
-    # Lazy model loading
+    # Lazy model loading (overridable by subclasses)
     # ------------------------------------------------------------------
 
     def _ensure_model_loaded(self) -> None:
-        """Load model and tokenizer on first use.
-
-        Attempts ``flash_attention_2`` first, falling back to ``eager``
-        if flash-attn is not installed.
-        """
+        """Load model on first use.  Override for alternative backends."""
         if self._model is not None:
             return
 
@@ -71,12 +70,7 @@ class BaseDeepSeekOCR(BaseOCRModel):
 
     @staticmethod
     def _resolve_attention_implementation() -> str:
-        """Return the best available attention implementation.
-
-        Returns:
-            ``"flash_attention_2"`` when flash-attn is installed,
-            otherwise ``"eager"``.
-        """
+        """Return the best available attention implementation."""
         try:
             import flash_attn  # noqa: F401
 
@@ -85,11 +79,11 @@ class BaseDeepSeekOCR(BaseOCRModel):
             return "eager"
 
     # ------------------------------------------------------------------
-    # PDF → images
+    # PDF → images (with resize)
     # ------------------------------------------------------------------
 
     def _pdf_to_images(self, pdf_path: str, temp_dir: Path) -> list[Path]:
-        """Convert a PDF to a sequence of page images.
+        """Convert a PDF to page images, resizing oversized pages.
 
         Args:
             pdf_path: Path to the source PDF file.
@@ -105,22 +99,19 @@ class BaseDeepSeekOCR(BaseOCRModel):
         for idx, img in enumerate(images):
             img_path = temp_dir / f"page_{idx:04d}.png"
             img.save(str(img_path), "PNG")
-            paths.append(img_path)
+            resized = resize_image(str(img_path))
+            paths.append(Path(resized))
         return paths
 
     # ------------------------------------------------------------------
-    # Per-page inference
+    # Per-page inference (overridable by subclasses)
     # ------------------------------------------------------------------
 
     def _infer_single_image(self, image_path: Path, output_path: Path) -> str:
         """Run OCR inference on a single page image.
 
-        Args:
-            image_path: Path to the page PNG.
-            output_path: Directory where the model may write results.
-
-        Returns:
-            Markdown string produced by the model for this page.
+        Default implementation uses the transformers ``model.infer()``
+        API.  Override this method for alternative backends (e.g. vLLM).
         """
         kwargs = dict(
             prompt=self.DEFAULT_PROMPT,
@@ -143,14 +134,7 @@ class BaseDeepSeekOCR(BaseOCRModel):
 
     @staticmethod
     def _assemble_markdown(page_markdowns: list[str]) -> str:
-        """Join per-page markdown into a single document.
-
-        Args:
-            page_markdowns: List of markdown strings, one per page.
-
-        Returns:
-            Combined markdown with page separators.
-        """
+        """Join per-page markdown into a single document."""
         separator = "\n\n---\n\n"
         return separator.join(page_markdowns)
 
@@ -160,7 +144,13 @@ class BaseDeepSeekOCR(BaseOCRModel):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Check whether torch and transformers are installed."""
+        """Check whether vLLM or transformers are installed."""
+        try:
+            import vllm  # noqa: F401
+
+            return True
+        except ImportError:
+            pass
         try:
             import torch  # noqa: F401
             import transformers  # noqa: F401
@@ -178,12 +168,6 @@ class BaseDeepSeekOCR(BaseOCRModel):
             3. Run inference on each page.
             4. Assemble markdown, write to output.
             5. Clean up temp images.
-
-        Args:
-            pdf_path: Absolute path to the PDF file.
-
-        Returns:
-            OCRResult with processing outcome.
         """
         paper_name = Path(pdf_path).stem
         paper_output_dir = self.get_paper_output_dir(pdf_path)
