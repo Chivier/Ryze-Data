@@ -201,8 +201,9 @@ def _format_model_name(name: str) -> str:
         "baseline": "Baseline (VLM)",
         "marker": "Marker (Ours)",
         "deepseek-ocr": "DeepSeek v1",
-        "deepseek-ocr-v2": "DeepSeek v2",
+        "glm-ocr": "GLM-OCR",
         "markitdown": "MarkItDown",
+        "paddleocr": "PaddleOCR",
     }
     return display_names.get(name, name)
 

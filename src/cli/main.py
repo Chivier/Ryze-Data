@@ -373,7 +373,7 @@ def benchmark():
 )
 @click.option(
     "--ocr-models",
-    default="marker,deepseek-ocr,deepseek-ocr-v2,markitdown",
+    default="marker,deepseek-ocr,glm-ocr,markitdown,paddleocr",
     help="Comma-separated list of OCR models to evaluate",
 )
 @click.option(
