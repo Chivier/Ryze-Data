@@ -1,6 +1,7 @@
 """Base class for OCR models with shared functionality."""
 
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -17,6 +18,57 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+
+# ---------------------------------------------------------------------------
+# Shared image resize utilities
+# ---------------------------------------------------------------------------
+
+MAX_IMAGE_SIZE = (1024, 1024)
+
+
+def resize_image(
+    image_path: str,
+    max_size: tuple[int, int] = MAX_IMAGE_SIZE,
+) -> str:
+    """Resize an image to fit within *max_size* (preserving aspect ratio).
+
+    If the image already fits, the original path is returned unchanged.
+    Otherwise a ``*.resized.png`` copy is written next to the original.
+    """
+    from PIL import Image
+
+    img = Image.open(image_path)
+    if img.width <= max_size[0] and img.height <= max_size[1]:
+        return image_path
+    img.thumbnail(max_size, Image.LANCZOS)
+    out = str(Path(image_path).with_suffix(".resized.png"))
+    img.save(out)
+    return out
+
+
+def resize_images(
+    image_paths: list[str],
+    work_dir: str,
+    max_size: tuple[int, int] = MAX_IMAGE_SIZE,
+) -> list[str]:
+    """Batch-resize images into *work_dir*, preserving aspect ratio.
+
+    Images that already fit are returned as-is.  Oversized images are saved
+    as resized copies inside *work_dir*.
+    """
+    from PIL import Image
+
+    resized: list[str] = []
+    for i, path in enumerate(image_paths):
+        img = Image.open(path)
+        if img.width <= max_size[0] and img.height <= max_size[1]:
+            resized.append(path)
+            continue
+        img.thumbnail(max_size, Image.LANCZOS)
+        out = os.path.join(work_dir, f"resized_{i}_{Path(path).name}")
+        img.save(out)
+        resized.append(out)
+    return resized
 
 
 @dataclass
