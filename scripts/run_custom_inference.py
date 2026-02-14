@@ -149,6 +149,8 @@ def postprocess_answer(answer: str, question_type: str) -> str:
     return answer.strip()
 
 
+
+
 # ---------------------------------------------------------------------------
 # *** USER: Edit this function to build your own prompt. ***
 # ---------------------------------------------------------------------------
@@ -472,6 +474,7 @@ def _process_one(
                     f"Missing OCR markdown for {sample.sample_id} in {ocr_dir}"
                 )
             return "", "missing_ocr", None
+
 
     # 3. Build prompt
     request = process_sample(
