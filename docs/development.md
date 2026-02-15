@@ -16,7 +16,7 @@
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - Git
 - Virtual environment tool (venv, conda, or virtualenv)
 - IDE with Python support (VSCode, PyCharm recommended)
@@ -33,13 +33,13 @@ git remote add upstream https://github.com/original/ryze-data.git
 
 2. **Create Development Environment**
 ```bash
-# Create virtual environment
+# Install dependencies with uv
+uv sync --all-extras
+
+# Or create a manual venv
 python -m venv venv-dev
 source venv-dev/bin/activate  # On Windows: venv-dev\Scripts\activate
-
-# Install development dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+pip install -e ".[benchmark]"
 ```
 
 3. **Configure Pre-commit Hooks**
@@ -83,23 +83,33 @@ pre-commit run --all-files
 ```
 src/
 ├── cli/                     # Command-line interface
-│   ├── __init__.py
 │   ├── main.py             # ✅ CLI entry point
 │   └── data_inspector.py   # ✅ Data inspection utilities
-├── scrapers/               # Web scraping modules
-│   ├── __init__.py
-│   ├── base_scraper.py     # Abstract base class
-│   └── nature_scraper.py   # ✅ Nature implementation
-├── config_manager.py       # ✅ Configuration management
-├── pipeline_manager.py     # ⚠️ Pipeline framework (partial)
-├── api_key_balancer.py     # ✅ API key load balancing
-└── chunked-ocr.py          # ✅ Chunked OCR processing
+├── ocr/                     # ✅ Extensible OCR module (6 models)
+│   ├── base_ocr.py          # Abstract base + OCRResult
+│   ├── registry.py          # OCRRegistry (decorator-based discovery)
+│   ├── marker_ocr.py        # Marker (CLI wrapper)
+│   ├── deepseek_ocr.py      # DeepSeek-OCR v1
+│   ├── deepseek_ocr_v2.py   # DeepSeek-OCR v2
+│   ├── markitdown_ocr.py    # MarkItDown
+│   ├── paddle_ocr.py        # PaddleOCR (PP-OCRv5)
+│   └── glm_ocr.py           # GLM-OCR (vLLM / Z.AI)
+├── benchmark/               # ✅ OCR benchmark evaluation
+│   ├── datasets/            # ArxivQA, SlideVQA loaders
+│   ├── evaluator.py         # Main evaluator orchestrator
+│   ├── qa_client.py         # QwenQAClient (vision + text)
+│   └── metrics.py           # Accuracy, EM, BLEU, ROUGE
+├── generators/              # ✅ QA generators (text + vision)
+├── scrapers/                # ✅ Web scraping (Nature)
+├── config_manager.py        # ✅ Configuration management
+├── pipeline_manager.py      # ⚠️ Pipeline framework (partial)
+├── api_key_balancer.py      # ✅ API key load balancing
+└── chunked-ocr.py           # ✅ Legacy chunked OCR
 ```
 
 **Implementation Status:**
 - ✅ Fully implemented
 - ⚠️ Framework implemented, functionality partial
-- Planned modules (downloaders/, processors/, generators/) not yet implemented
 
 ### Design Patterns
 

@@ -24,13 +24,13 @@ ModuleNotFoundError: No module named 'xxx'
 #### 解决方案
 ```bash
 # 安装缺失的依赖
-pip install -r requirements.txt
+uv sync
 
 # 或单独安装
-pip install xxx
+uv add xxx
 
 # 验证安装
-python -c "import xxx; print(xxx.__version__)"
+uv run python -c "import xxx; print(xxx.__version__)"
 ```
 
 #### 症状
@@ -348,7 +348,7 @@ torch.cuda.empty_cache()
 
 ```bash
 # 检查 Python 版本
-python --version  # 需要 3.8+
+python --version  # 需要 3.10+
 
 # 使用 pyenv 管理版本
 pyenv install 3.9.15
@@ -474,6 +474,30 @@ DeepSeek-OCR 需要 `transformers==4.46.3`，与主项目的 vLLM 依赖不兼�
 cd scripts/utils/deepseek_ocr_v1
 .venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
 ```
+
+### PaddleOCR GPU 设备映射
+
+`CUDA_VISIBLE_DEVICES` 会重映射设备编号。PaddleOCR 内部始终使用 `gpu:0`：
+
+```bash
+# 正确：--gpu 参数设置 CUDA_VISIBLE_DEVICES，内部使用 gpu:0
+.venv/bin/python run_ocr.py --dataset arxivqa --gpu 3
+
+# 错误：不要直接传 gpu:3
+```
+
+### GLM-OCR 架构不支持
+
+GLM-OCR 需要 vLLM nightly (≥0.16.0dev) 和从 git 安装的 transformers 才能识别 `glm_ocr` 架构：
+
+```bash
+# GLM-OCR 子 venv 使用 Python 3.12
+cd scripts/utils/glm_ocr
+bash setup_env.sh  # 安装 vLLM nightly + transformers from git
+.venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
+```
+
+GLM-OCR 使用 chat-template 提示格式，vLLM 需要 `<|begin_of_image|><|image|><|end_of_image|>` 特殊 token。
 
 ## 调试技巧
 

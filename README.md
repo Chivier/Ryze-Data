@@ -15,7 +15,7 @@ Ryze-Data is an enterprise-grade, modular framework designed to automate the com
 ### Key Features
 
 - **Intelligent Web Scraping**: Automated collection of scientific articles from Nature and other sources
-- **Multi-engine OCR**: Extensible OCR with Marker, DeepSeek-OCR v1/v2, MarkItDown, and standalone precompute scripts
+- **Multi-engine OCR**: Extensible OCR with Marker, DeepSeek-OCR v1/v2, MarkItDown, PaddleOCR, GLM-OCR, and standalone precompute scripts
 - **LLM Request Auto Balancer**: Automatic load balancing across multiple API keys
 - **Text QA Generation**: Generate question-answer pairs from OCR markdown files
 - **Vision QA Generation**: Generate visual QA pairs from figures (LlamaFactory compatible)
@@ -78,25 +78,12 @@ uv run python -m src.cli.main pipeline --stages scrape,ocr,qa
 Each OCR model has an isolated environment under `scripts/utils/`:
 
 ```bash
-# Setup a model environment
+# Setup and run any model
 cd scripts/utils/markitdown && bash setup_env.sh
-
-# Run OCR on ArxivQA (5 samples)
 .venv/bin/python run_ocr.py --dataset arxivqa --max-samples 5
-
-# Run OCR on SlideVQA (all samples)
-.venv/bin/python run_ocr.py --dataset slidevqa
-
-# Marker supports pipelined workers and optional GPU selection
-cd ../marker && bash setup_env.sh
-.venv/bin/python run_ocr.py --dataset arxivqa --workers 4 --gpu cpu
-
-# DeepSeek models require --gpu
-cd ../deepseek_ocr_v1 && bash setup_env.sh
-.venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
 ```
 
-Output goes to `data/ocr_precompute/{model}/{dataset}/`.
+Output goes to `data/ocr_precompute/{model}/{dataset}/`. See [scripts/README.md](scripts/README.md) for the complete scripts guide including benchmark toolchain, custom inference, and all OCR models.
 
 ### Data Inspection
 
@@ -135,6 +122,8 @@ Ryze-Data/
 │   │   ├── deepseek_ocr_v2.py # DeepSeek-OCR v2
 │   │   ├── marker_ocr.py      # Marker OCR (default)
 │   │   ├── markitdown_ocr.py  # MarkItDown OCR
+│   │   ├── paddle_ocr.py      # PaddleOCR (PP-OCRv5)
+│   │   ├── glm_ocr.py         # GLM-OCR (vLLM / Z.AI API)
 │   │   └── registry.py        # OCRRegistry (model discovery)
 │   ├── chunked-ocr.py         # Legacy batch OCR processing
 │   ├── config_manager.py      # Configuration management
@@ -159,12 +148,17 @@ Ryze-Data/
 │   ├── sft_data/             # Text QA output
 │   └── vlm_sft_data/         # Vision QA output
 ├── scripts/                   # Utility scripts
+│   ├── test_ocr_real.py      # Real-file OCR test runner
+│   ├── test_ocr_all.sh       # Run tests for all OCR models
+│   ├── run_custom_inference.py # Custom model inference
 │   └── utils/                # Standalone OCR precompute
 │       ├── _shared/          # Shared dataset loading & image utils
 │       ├── deepseek_ocr_v1/  # DeepSeek-OCR v1 standalone
 │       ├── deepseek_ocr_v2/  # DeepSeek-OCR v2 standalone
 │       ├── marker/           # Marker standalone
-│       └── markitdown/       # MarkItDown standalone
+│       ├── markitdown/       # MarkItDown standalone
+│       ├── paddleocr/        # PaddleOCR standalone
+│       └── glm_ocr/          # GLM-OCR standalone
 ├── pyproject.toml            # Project configuration (uv)
 └── config.json               # Runtime configuration
 ```
@@ -267,5 +261,7 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 - [Marker](https://github.com/datalab-to/marker) - OCR engine
 - [DeepSeek-OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - Vision-based OCR models
 - [MarkItDown](https://github.com/microsoft/markitdown) - Microsoft PDF-to-Markdown conversion
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - PP-OCRv5 text extraction and PP-StructureV3 layout analysis
+- [GLM-OCR](https://huggingface.co/stepfun-ai/GOT-OCR-2.0-hf) - GLM-based OCR model (vLLM / Z.AI API)
 - [OpenAI](https://openai.com) - LLM APIs
 - [LlamaFactory](https://github.com/hiyouga/LLaMA-Factory) - Training framework compatibility

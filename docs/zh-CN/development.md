@@ -16,7 +16,7 @@
 
 ### 先决条件
 
-- Python 3.8 或更高版本
+- Python 3.10 或更高版本
 - Git 版本控制工具
 - 虚拟环境工具（venv、conda 或 virtualenv）
 - 支持 Python 的 IDE（推荐 VSCode、PyCharm）

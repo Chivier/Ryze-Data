@@ -1,5 +1,7 @@
 # OCR Module Extension Guide
 
+6 models are currently registered: `marker`, `deepseek-ocr`, `deepseek-ocr-v2`, `markitdown`, `paddleocr`, `glm-ocr`.
+
 Register custom OCR models in three steps.
 
 ## Quick Reference

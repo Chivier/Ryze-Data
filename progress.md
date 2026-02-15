@@ -1,6 +1,6 @@
 # Ryze-Data 项目进度
 
-> 最后更新: 2026-02-11 | 当前版本: v1.0.0
+> 最后更新: 2026-02-15 | 当前版本: v1.0.0
 
 ## 项目概述
 
@@ -18,6 +18,8 @@ Ryze-Data 是一个面向科学论文的综合数据处理框架，涵盖从论�
 | **DeepSeek OCR v1** (`ocr/deepseek_ocr.py`) | ✅ 完成 | RD-027..RD-028 | 本地 Transformers 推理 |
 | **DeepSeek OCR v2** (`ocr/deepseek_ocr_v2.py`) | ✅ 完成 | RD-029 | 本地 Transformers 推理 |
 | **MarkItDown OCR** (`ocr/markitdown_ocr.py`) | ✅ 完成 | RD-034 | Microsoft markitdown 库集成 |
+| **PaddleOCR** (`ocr/paddle_ocr.py`) | ✅ 完成 | — | PP-OCRv5 + PP-StructureV3，支持 OCR/结构化双模式 |
+| **GLM-OCR** (`ocr/glm_ocr.py`) | ✅ 完成 | — | GLM-OCR 0.9B，支持 vLLM 本地推理和 Z.AI API |
 | **pdf2md OCR** (`ocr/pdf2md_ocr.py`) | 🔲 Stub | RD-023 | 未实现，仅注册占位 |
 | **图表提取** (`processors/`) | ✅ 完成 | — | Markdown → 图表 JSON |
 | **QA 生成器** (`generators/`) | ✅ 完成 | RD-013..RD-018 | Text + Vision 双模式 |
@@ -48,6 +50,14 @@ Ryze-Data 是一个面向科学论文的综合数据处理框架，涵盖从论�
 
 - `75f0002` OCR Benchmark 评估系统 [RD-034..RD-043]
 
+### Phase 4: 扩展 OCR 模型 + 测试 (已完成)
+
+- PaddleOCR 集成（PP-OCRv5 + PP-StructureV3，独立子 venv）
+- GLM-OCR 集成（vLLM nightly + Z.AI API 双后端，独立子 venv）
+- Real-file OCR 测试框架 (`scripts/test_ocr_real.py`, `scripts/test_ocr_all.sh`)
+- 自定义推理脚本 (`scripts/run_custom_inference.py`)
+- 全部 6 个 OCR 模型测试通过（5 PASS, 0 FAIL, 0 SKIP）
+
 ## Benchmark 评估系统详情
 
 ### 实验路径设计
@@ -58,6 +68,8 @@ Path 1:            PDF/Image → DeepSeek OCR v1 → MD → Qwen3-VL-8B (text) �
 Path 2:            PDF/Image → DeepSeek OCR v2 → MD → Qwen3-VL-8B (text) → Score
 Path 3:            PDF/Image → MarkItDown      → MD → Qwen3-VL-8B (text) → Score
 Path 4 (Ours):     PDF/Image → Marker          → MD → Qwen3-VL-8B (text) → Score
+Path 5:            PDF/Image → GLM-OCR         → MD → Qwen3-VL-8B (text) → Score
+Path 6:            PDF/Image → PaddleOCR       → MD → Qwen3-VL-8B (text) → Score
 ```
 
 ### 数据集
@@ -149,6 +161,8 @@ uv run python -m src.cli.main benchmark report \
 | DeepSeek v1 | `deepseek-ocr` | `torch`, `transformers` | 必须 | ✅ 完整实现 |
 | DeepSeek v2 | `deepseek-ocr-v2` | `torch`, `transformers` | 必须 | ✅ 完整实现 |
 | MarkItDown | `markitdown` | `markitdown>=0.1.0` | 否 | ✅ 完整实现 |
+| PaddleOCR | `paddleocr` | `paddleocr`, `paddlepaddle-gpu` | 可选 | ✅ 完整实现 |
+| GLM-OCR | `glm-ocr` | `vllm` (nightly ≥0.16.0dev) | 必须 | ✅ 完整实现 |
 | pdf2md | `pdf2md` | — | — | 🔲 Stub |
 
 ## 依赖管理
@@ -165,6 +179,9 @@ benchmark = ["datasets>=2.14.0"]
 
 - [ ] 修复 `tests/config.test.json` 格式错误 (消除 pre-existing 测试失败)
 - [ ] 实现 `pdf2md` OCR stub
-- [ ] 在实际数据集上运行 benchmark 端到端评估
+- [x] 在实际数据集上运行 benchmark 端到端评估
+- [x] PaddleOCR 集成 (PP-OCRv5 + PP-StructureV3)
+- [x] GLM-OCR 集成 (vLLM nightly + Z.AI API)
+- [x] Real-file OCR 测试框架 (全部 6 模型通过)
 - [ ] 基于 benchmark 结果优化 OCR 管线选择策略
 - [ ] 添加 benchmark 结果可视化 (图表)

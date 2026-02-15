@@ -4,50 +4,53 @@
 
 | Module | Status | Description |
 |--------|--------|-------------|
-| OCR Model | ✅ Implemented | `chunked-ocr.py` - PDF to Markdown conversion |
+| OCR Module | ✅ Implemented | `ocr/` - Extensible OCR with 6 models (Marker, DeepSeek v1/v2, MarkItDown, PaddleOCR, GLM-OCR) |
+| Benchmark System | ✅ Implemented | `benchmark/` - OCR quality evaluation on ArxivQA & SlideVQA |
 | API Balancer | ✅ Implemented | `api_key_balancer.py` - Multi-key load balancing |
 | Config Manager | ✅ Implemented | `config_manager.py` - Configuration management |
 | NatureScraper | ✅ Implemented | `scrapers/nature_scraper.py` - Nature article scraping |
 | DataInspector | ✅ Implemented | `cli/data_inspector.py` - Data inspection tools |
 | Text QA Generator | ✅ Implemented | `generators/text_qa_generator.py` - Text QA generation |
 | Vision QA Generator | ✅ Implemented | `generators/vision_qa_generator.py` - Vision QA generation |
+| Legacy Chunked OCR | ✅ Implemented | `chunked-ocr.py` - Legacy batch OCR (use `ocr/` module instead) |
 | Content Parser | 📋 Planned | Structured content extraction |
 
-## Module 1: OCR Model ✅
+## Module 1: OCR Module ✅
 
-OCR Model is provided by [surya](https://github.com/datalab-to/surya) and [marker](https://github.com/datalab-to/marker).
+Extensible, registry-based OCR system supporting 6 models. See `src/ocr/README.md` for the extension guide.
 
-**Implementation:** `src/chunked-ocr.py`
+**Implementation:** `src/ocr/`
 
-### Input:
-- `Input PDF Path`
+### Registered Models
 
-Folder Structure:
+| `--ocr-model` | Class | Backend | GPU | Notes |
+|----------------|-------|---------|-----|-------|
+| `marker` | `MarkerOCR` | CLI (`marker_single`) | Optional | Default. Supports multi-GPU batch via `marker_chunk_convert` |
+| `deepseek-ocr` | `DeepSeekOCRv1` | vLLM / Transformers | Required | `deepseek-ai/DeepSeek-OCR`, bfloat16, anti-repetition logits |
+| `deepseek-ocr-v2` | `DeepSeekOCRv2` | vLLM / Transformers | Required | `deepseek-ai/DeepSeek-OCR-2` |
+| `markitdown` | `MarkItDownOCR` | Python API | No | Microsoft MarkItDown, text extraction (not OCR) |
+| `paddleocr` | `PaddleOCRModel` | PaddleOCR | Optional | PP-OCRv5 + PP-StructureV3, OCR or structure mode |
+| `glm-ocr` | `GLMOCRModel` | vLLM / Z.AI API | Required | 0.9B params, dual backend: local vLLM or remote API |
+
+### Architecture
 
 ```
-PDF_Path
-├── paper1.pdf
-├── paper2.pdf
-├── paper3.pdf
-├── ...
-├── paperN.pdf
-└── metadata.json(optional)
+BaseOCRModel (ABC)
+├── MarkerOCR          (marker, CLI wrapper)
+├── BaseDeepSeekOCR    (shared base class)
+│   ├── DeepSeekOCRv1  (deepseek-ocr)
+│   └── DeepSeekOCRv2  (deepseek-ocr-v2)
+├── MarkItDownOCR      (markitdown)
+├── PaddleOCRModel     (paddleocr)
+└── GLMOCRModel        (glm-ocr)
 ```
 
-### Output:
-- OCR Result Folder
+### Output Format
+
 ```
-OCR_Result_Folder
-├── paper1
-|   ├── figure1.png
-|   ├── figure2.png
-|   ├── ...
-|   ├── figureN.png
-|   ├── paper1.md (exact same name with this folder)
-|   └── paper1_meta.json (ocr metadata for this paper)
-├── paper2
-├── ...
-└── paperN
+{output_dir}/{paper_name}/
+├── {paper_name}.md    # Markdown output
+└── *.png              # Extracted images (optional)
 ```
 
 ## Module 2: API Key Balancer ✅

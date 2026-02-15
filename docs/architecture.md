@@ -64,6 +64,24 @@ Ryze-Data/
 │   │   ├── main.py              # CLI 主入口
 │   │   └── data_inspector.py    # 数据检查和采样工具
 │   │
+│   ├── ocr/                     # 可扩展 OCR 模块
+│   │   ├── base_ocr.py          # 抽象基类 + OCRResult
+│   │   ├── deepseek_base.py     # DeepSeek 共享基类
+│   │   ├── deepseek_ocr.py      # DeepSeek-OCR v1
+│   │   ├── deepseek_ocr_v2.py   # DeepSeek-OCR v2
+│   │   ├── marker_ocr.py        # Marker OCR
+│   │   ├── markitdown_ocr.py    # MarkItDown OCR
+│   │   ├── paddle_ocr.py        # PaddleOCR (PP-OCRv5)
+│   │   ├── glm_ocr.py           # GLM-OCR (vLLM / Z.AI API)
+│   │   └── registry.py          # OCRRegistry (模型发现)
+│   │
+│   ├── benchmark/               # OCR 基准评估系统
+│   │   ├── datasets/            # 数据集加载器 (ArxivQA, SlideVQA)
+│   │   ├── evaluator.py         # 评估器主编排
+│   │   ├── qa_client.py         # Qwen3-VL-8B QA 客户端
+│   │   ├── metrics.py           # 评估指标
+│   │   └── report.py            # 报告生成
+│   │
 │   ├── generators/              # QA 生成器模块
 │   │   ├── __init__.py          # 包导出
 │   │   ├── base_generator.py    # 抽象基类和 QAPair
@@ -104,12 +122,17 @@ Ryze-Data/
 │       └── visual-quality.txt
 │
 ├── scripts/                     # 脚本工具
+│   ├── test_ocr_real.py         # OCR 模型真实文件测试
+│   ├── test_ocr_all.sh          # 全部模型测试编排
+│   ├── run_custom_inference.py  # 自定义推理脚本
 │   └── utils/                   # 独立 OCR 预处理脚本
 │       ├── _shared/             # 共享工具（数据集加载、图像转 PDF）
 │       ├── deepseek_ocr_v1/     # DeepSeek-OCR v1 独立脚本
 │       ├── deepseek_ocr_v2/     # DeepSeek-OCR v2 独立脚本
 │       ├── marker/              # Marker 独立脚本
-│       └── markitdown/          # MarkItDown 独立脚本
+│       ├── markitdown/          # MarkItDown 独立脚本
+│       ├── paddleocr/           # PaddleOCR 独立脚本
+│       └── glm_ocr/             # GLM-OCR 独立脚本
 │
 ├── data/                        # 数据目录（git 忽略）
 │   ├── nature_metadata/         # 爬取的元数据
@@ -313,11 +336,13 @@ class BaseScraper(ABC):
 **架构**：
 ```
 BaseOCRModel (ABC)
-├── MarkerOCR          (marker, 默认)
+├── MarkerOCR          (marker, CLI wrapper)
 ├── BaseDeepSeekOCR    (共享基类)
 │   ├── DeepSeekOCRv1  (deepseek-ocr,    HF: deepseek-ai/DeepSeek-OCR)
 │   └── DeepSeekOCRv2  (deepseek-ocr-v2, HF: deepseek-ai/DeepSeek-OCR-2)
-└── MarkItDownOCR      (markitdown)
+├── MarkItDownOCR      (markitdown)
+├── PaddleOCRModel     (paddleocr, PP-OCRv5 + PP-StructureV3)
+└── GLMOCRModel        (glm-ocr, vLLM / Z.AI API)
 ```
 
 **核心机制**：
@@ -389,10 +414,10 @@ data/
 
 | 组件 | 技术选型 | 说明 |
 |------|---------|------|
-| 语言 | Python 3.8+ | 主开发语言 |
+| 语言 | Python 3.10+ | 主开发语言 |
 | CLI | Click | 命令行框架 |
 | 配置 | python-dotenv | 环境变量管理 |
-| OCR | Marker / DeepSeek-OCR | PDF 转换引擎（多模型可选） |
+| OCR | Marker / DeepSeek-OCR / PaddleOCR / GLM-OCR / MarkItDown | PDF 转换引擎（6 模型可选） |
 | 爬虫 | BeautifulSoup | HTML 解析 |
 | 并行 | threading/multiprocessing | 多线程/多进程处理 |
 | 测试 | pytest | 测试框架 |
@@ -559,16 +584,15 @@ stats = balancer.get_statistics()
 ## 未来规划
 
 ### 短期目标
-1. 实现 PDF 下载模块
-2. 实现图表提取模块
-3. 实现 QA 生成模块
+1. 基于 benchmark 结果优化 OCR 管线选择策略
+2. 添加 benchmark 结果可视化（图表）
+3. 修复 pre-existing 测试配置问题
 
 ### 中期目标
 1. 支持更多数据源（Arxiv、PubMed）
-2. 改进 OCR 精度
-3. Web UI 界面
+2. Web UI 界面
+3. 分布式处理支持
 
 ### 长期目标
-1. 分布式处理支持
-2. 机器学习驱动的质量控制
-3. 自动化数据标注
+1. 机器学习驱动的质量控制
+2. 自动化数据标注

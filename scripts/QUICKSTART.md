@@ -106,6 +106,8 @@ For each sample, the script looks for OCR output in this order:
 | `baseline4` | GLM-OCR | GLM-based OCR model | `data/ocr_precompute/glm_ocr_organized/{dataset}/` |
 | `us` | Marker | Marker PDF-to-markdown pipeline | `data/ocr_precompute/marker/{dataset}/` |
 
+> **Note:** PaddleOCR precomputed results are also available at `data/ocr_precompute/paddleocr/{dataset}/` but are not yet wired as a named experiment. To add it, extend `run_custom_inference.py`'s experiment choices and OCR directory mapping.
+
 **How it works:** For `baseline`, only the rendered PDF page image(s) are sent to the VLM.
 For all other experiments, the corresponding precomputed OCR markdown is loaded from disk
 and included in the prompt alongside the image, giving the model both visual and textual context.

@@ -1,7 +1,7 @@
 # Ryze-Data 数据处理框架
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
 一个综合性的科学文献数据处理流水线框架，提供从网络爬取到训练数据生成的端到端工作流。
 
@@ -14,7 +14,7 @@ Ryze-Data 是一个企业级的模块化框架，专门设计用于自动化科�
 ### 核心特性
 
 - **📚 智能网页爬取**：自动收集来自 Nature 等来源的科学文章
-- **🔍 先进的 OCR 技术**：支持 Marker、DeepSeek-OCR v1/v2、MarkItDown 多模型 OCR，并提供独立预处理脚本
+- **🔍 先进的 OCR 技术**：支持 Marker、DeepSeek-OCR v1/v2、MarkItDown、PaddleOCR、GLM-OCR 共 6 种模型 OCR，并提供独立预处理脚本
 - **⚖️ LLM 自动负载均衡**：支持多 API 密钥的智能负载均衡和自动重试
 - **📊 分块 OCR 处理**：支持大规模 PDF 批量处理
 - **🔧 灵活配置**：支持热重载的基于环境的配置
@@ -25,7 +25,7 @@ Ryze-Data 是一个企业级的模块化框架，专门设计用于自动化科�
 
 ### 系统要求
 
-- Python 3.8 或更高版本
+- Python 3.10 或更高版本
 - CUDA 支持的 GPU（可选，用于加速 OCR）
 - 建议 16GB+ RAM
 - 100GB+ 可用磁盘空间用于数据存储
@@ -37,12 +37,13 @@ Ryze-Data 是一个企业级的模块化框架，专门设计用于自动化科�
 git clone https://github.com/your-username/ryze-data.git
 cd ryze-data
 
-# 创建虚拟环境（推荐）
-python -m venv venv
-source venv/bin/activate  # Windows 系统: venv\Scripts\activate
+# 使用 uv 安装依赖（推荐）
+uv sync
 
-# 安装依赖
-pip install -r requirements.txt
+# 或使用 pip
+python -m venv venv
+source venv/bin/activate
+pip install -e .
 
 # 配置环境
 cp .env.example .env
@@ -88,11 +89,14 @@ python -m src.cli.main inspect stats
 Ryze-Data/
 ├── src/                    # 源代码
 │   ├── cli/               # 命令行接口
+│   ├── ocr/               # 可扩展 OCR 模块（6 个模型）
+│   ├── benchmark/         # OCR 基准评估系统
+│   ├── generators/        # QA 生成器（文本 + 视觉）
 │   ├── scrapers/          # 网页爬取模块
 │   ├── config_manager.py  # 配置管理
 │   ├── pipeline_manager.py # 流水线编排
 │   ├── api_key_balancer.py # LLM API 负载均衡器
-│   └── chunked-ocr.py     # 分块 OCR 处理
+│   └── chunked-ocr.py     # 旧版分块 OCR 处理
 ├── prompts/               # LLM 提示词模板
 ├── tests/                 # 测试套件
 │   ├── unit/             # 单元测试
@@ -103,7 +107,9 @@ Ryze-Data/
 │       ├── deepseek_ocr_v1/
 │       ├── deepseek_ocr_v2/
 │       ├── marker/
-│       └── markitdown/
+│       ├── markitdown/
+│       ├── paddleocr/
+│       └── glm_ocr/
 ├── docs/                  # 文档
 │   ├── architecture.md   # 系统架构
 │   ├── configuration.md  # 配置指南
@@ -261,6 +267,10 @@ pylint src/
 ## 🙏 致谢
 
 - [Marker](https://github.com/datalab-to/marker) - OCR 引擎
+- [DeepSeek-OCR](https://huggingface.co/deepseek-ai/DeepSeek-OCR) - 视觉 OCR 模型
+- [MarkItDown](https://github.com/microsoft/markitdown) - Microsoft PDF 转 Markdown
+- [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) - PP-OCRv5 文字提取
+- [GLM-OCR](https://huggingface.co/stepfun-ai/GOT-OCR-2.0-hf) - GLM-OCR 模型
 - [OpenAI](https://openai.com) - LLM API
 - [BeautifulSoup](https://www.crummy.com/software/BeautifulSoup/) - 网页爬取
 - 所有贡献者和用户

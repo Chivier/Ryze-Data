@@ -591,42 +591,7 @@ RYZE_USE_FP16=true          # 使用半精度计算
 
 ### 5. 独立 OCR 预处理脚本
 
-除了通过 CLI 运行 OCR，还可以使用 `scripts/utils/` 下的独立脚本对 HuggingFace 数据集进行批量 OCR 预处理。每个模型拥有独立的虚拟环境：
-
-```bash
-# 设置模型环境
-cd scripts/utils/markitdown && bash setup_env.sh
-
-# 运行 OCR（ArxivQA，5 个样本）
-.venv/bin/python run_ocr.py --dataset arxivqa --max-samples 5
-
-# Marker 支持流水线并行和 GPU 选择
-cd ../marker && bash setup_env.sh
-.venv/bin/python run_ocr.py --dataset arxivqa --workers 4 --gpu cpu
-
-# DeepSeek 模型需要指定 GPU
-cd ../deepseek_ocr_v1 && bash setup_env.sh
-.venv/bin/python run_ocr.py --dataset arxivqa --gpu 0
-```
-
-**通用 CLI 参数：**
-
-| 参数 | 默认值 | 说明 |
-|------|--------|------|
-| `--dataset` | 必填 | `arxivqa` 或 `slidevqa` |
-| `--output-dir` | `data/ocr_precompute/{model}/{dataset}` | 输出目录 |
-| `--cache-dir` | `data/benchmark_data` | 共享图像缓存目录 |
-| `--max-samples` | `0`（全部） | 最大样本数 |
-| `--hf-endpoint` | 未设置 | HuggingFace 镜像地址（如 `https://hf-mirror.com`） |
-
-**模型专有参数：**
-
-| 模型 | 参数 | 默认值 | 说明 |
-|------|------|--------|------|
-| Marker | `--workers` | `0` | 流水线并行 worker 数量（`0`=自动） |
-| Marker | `--gpu` | 未设置 | 设置 `CUDA_VISIBLE_DEVICES`（如 `0`、`0,1` 或 `cpu`） |
-| DeepSeek v1/v2 | `--gpu` | `0` | GPU 设备 ID |
-| DeepSeek v1/v2 | `--backend` | `transformers` | 推理后端：`auto`/`vllm`/`transformers` |
+独立 OCR 预处理脚本位于 `scripts/utils/`，每个模型拥有独立的虚拟环境。详细使用说明请参见 [scripts/README.md](../../scripts/README.md) 和 [scripts/utils/README.md](../../scripts/utils/README.md)。
 
 ### 6. 分布式处理配置
 
