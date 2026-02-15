@@ -59,16 +59,45 @@ class GLMOCRModel(BaseOCRModel):
         )
         self.logger.info("vLLM model loaded")
 
+    def _build_vllm_prompt(self) -> str:
+        """Build the chat-template prompt expected by vLLM's GLM-OCR handler."""
+        try:
+            from transformers import AutoProcessor
+
+            proc = AutoProcessor.from_pretrained(
+                self.HF_MODEL_ID, trust_remote_code=True
+            )
+            messages = [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "image": "placeholder"},
+                        {"type": "text", "text": self.DEFAULT_PROMPT},
+                    ],
+                }
+            ]
+            return proc.apply_chat_template(
+                messages, add_generation_prompt=True, tokenize=False
+            )
+        except Exception:
+            # Fallback: hardcoded template matching zai-org/GLM-OCR.
+            return (
+                "[gMASK]<sop><|user|>\n"
+                "<|begin_of_image|><|image|><|end_of_image|>"
+                f"{self.DEFAULT_PROMPT}<|assistant|>\n"
+            )
+
     def _infer_vllm(self, image_path: str) -> str:
         from PIL import Image
 
         with Image.open(image_path) as img:
             image = img.convert("RGB")
 
+        prompt = self._build_vllm_prompt()
         outputs = self._model.generate(
             [
                 {
-                    "prompt": self.DEFAULT_PROMPT,
+                    "prompt": prompt,
                     "multi_modal_data": {"image": image},
                 }
             ],

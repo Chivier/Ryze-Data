@@ -39,8 +39,14 @@ class MarkerOCR(BaseOCRModel):
 
     @classmethod
     def is_available(cls) -> bool:
-        """Check if the marker CLI is installed."""
-        return shutil.which("marker_single") is not None
+        """Check if the marker CLI is installed (PATH or current venv bin)."""
+        if shutil.which("marker_single") is not None:
+            return True
+        candidates = [
+            Path(sys.executable).parent / "marker_single",
+            Path(sys.executable).resolve().parent / "marker_single",
+        ]
+        return any(c.exists() for c in candidates)
 
     def process_single(self, pdf_path: str) -> OCRResult:
         """Process a single PDF using marker_single.

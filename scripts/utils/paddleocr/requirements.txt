@@ -1,4 +1,4 @@
-datasets
 pdf2image
 Pillow
+datasets
 tqdm
