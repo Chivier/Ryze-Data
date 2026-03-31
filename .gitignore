@@ -222,3 +222,31 @@ scripts/utils/*/.venv/
 .hf_cache/
 data/*
 !data/id_mappings/
+
+# Local data, outputs, and training artifacts
+ocr_result/
+sft_data/
+vlm_sft_data/
+data/
+datasets/
+dataset/
+outputs/
+logs/
+results/
+*.pdf
+*.arrow
+*.parquet
+*.jsonl
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+checkpoint-*/
+final_model/
+merged_model/
+huggingface_model/
+
+# Mac / temp files
+.DS_Store
+._*
